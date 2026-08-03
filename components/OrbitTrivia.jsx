@@ -1,5 +1,26 @@
 import React, { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
-import { Rocket, Play, Users, Trophy, X, Pause, ChevronRight, Check, Share2, Flame, Target, AlertTriangle, Repeat } from "lucide-react";
+import { Rocket, Play, Users, Trophy, X, Pause, ChevronRight, Check, Share2, Flame, Target, AlertTriangle, Repeat } from "lucide-react"
+/* ============================================================
+   PERSISTENCE
+   The prototype ran inside a preview that provided window.storage.
+   The deployed app has no such thing, so we back the same API with
+   the browser's own localStorage. Wrapped in a guard because this
+   module is also evaluated on the server, where window is undefined.
+   ============================================================ */
+if (typeof window !== "undefined" && !window.storage) {
+  window.storage = {
+    get: async (key) => {
+      const value = window.localStorage.getItem(key);
+      if (value === null) throw new Error(`No stored value for ${key}`);
+      return { key, value };
+    },
+    set: async (key, value) => {
+      window.localStorage.setItem(key, String(value));
+      return { key, value };
+    },
+  };
+}
+ ;
 
 /* ============================================================
    THEMES — look only. Same questions, same scoring, same rules.
