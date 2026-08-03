@@ -1132,3 +1132,339 @@ function Game({ config, mode, onFinish, onQuit }) {
                     bg = `${C.abort}1E`; border = C.abort; color = C.abort;
                   } else {
                     color = C.dim
+; bg = C.hull;
+                  }
+                }
+                return (
+                  <div key={opt} className="relative">
+                    {isCorrect && <Lightning active={zap} />}
+                    <button
+                      onClick={() => lockIn(opt)}
+                      disabled={answered || paused}
+                      className="w-full p-4 rounded-xl text-left active:scale-95 relative"
+                      style={{
+                        background: bg,
+                        border: `1px solid ${border}`,
+                        color,
+                        boxShadow: glow,
+                        opacity: answered && !isCorrect && !isPicked ? 0.4 : 1,
+                        transform: isPicked && !isCorrect && shake ? "translateX(6px)" : "none",
+                        transition: "all .28s cubic-bezier(.2,.8,.2,1)",
+                        fontFamily: "Inter, system-ui, sans-serif",
+                        fontSize: 15,
+                        lineHeight: 1.4,
+                        animation: isCorrect && zap ? "chargeup .6s ease-out" : "none",
+                      }}
+                    >
+                      <span className="flex items-center gap-3">
+                        {answered && isCorrect && <Check size={16} style={{ flexShrink: 0 }} />}
+                        {answered && isPicked && !isCorrect && <X size={16} style={{ flexShrink: 0 }} />}
+                        {opt}
+                      </span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {answered && (
+              <div className="mt-auto">
+                <div
+                  className="p-4 rounded-xl mb-3 text-center"
+                  style={{ background: gotIt ? `${C.thrust}12` : `${C.abort}12`, border: `1px solid ${gotIt ? C.thrust : C.abort}44` }}
+                >
+                  <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 18, color: gotIt ? C.thrust : C.abort }}>
+                    {gotIt ? "Nailed it" : timedOut ? "Out of time" : "Not quite"}
+                  </div>
+                  {gotIt && (
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: C.star, marginTop: 4 }}>
+                      +{TIER_META[question.d].points + Math.round(TIER_META[question.d].points * 0.5 * (timeLeft / timer))} pts
+                    </div>
+                  )}
+                </div>
+                <Btn full onClick={advance} style={{ padding: "15px", fontSize: 15 }}>
+                  {pIndex === players.length - 1 && qIndex === totalRounds - 1
+                    ? "See results"
+                    : players.length > 1
+                    ? "Next player"
+                    : "Next question"}
+                </Btn>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {paused && !answered && (
+          <div className="fixed inset-0 z-40 flex items-center justify-center p-6" style={{ background: "#000000dd", backdropFilter: "blur(4px)" }}>
+            <div className="text-center">
+              <Pause size={44} style={{ color: C.ion, margin: "0 auto 16px" }} />
+              <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 26, color: C.star }} className="mb-2">
+                Paused
+              </div>
+              <div className="text-sm mb-6" style={{ color: C.dim }}>Timer's stopped. Nobody's cheating.</div>
+              <Btn onClick={() => setPaused(false)}>Resume</Btn>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Results({ data, onHome, onAgain }) {
+  const C = useC();
+  const { players, scores, correctCounts, bestStreaks, totalRounds } = data;
+  const ranked = players
+    .map((name, i) => ({ name, score: scores[i], correct: correctCounts[i], streak: bestStreaks[i] }))
+    .sort((a, b) => b.score - a.score);
+  const winner = ranked[0];
+  const solo = players.length === 1;
+
+  const share = () => {
+    const text = solo
+      ? `I scored ${winner.score} on Orbit Trivia — ${winner.correct}/${totalRounds} on Tesla, SpaceX and Elon deep cuts. Think you can beat that? 🚀`
+      : `${winner.name} just took the car with ${winner.score} points on Orbit Trivia 🚀 Tesla + SpaceX deep cuts. Who's beating that?`;
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank");
+  };
+
+  return (
+    <div className="relative min-h-screen p-6" style={{ background: C.void }}>
+      <Starfield />
+      <div className="relative z-10 max-w-md mx-auto">
+        <div className="text-center pt-8 pb-8">
+          <div
+            className="mx-auto mb-5 flex items-center justify-center rounded-full"
+            style={{
+              width: 76,
+              height: 76,
+              background: `linear-gradient(135deg, ${C.ion}22, ${C.plasma}33)`,
+              border: `1px solid ${C.ion}66`,
+              boxShadow: `0 0 40px ${C.ion}33`,
+            }}
+          >
+            <Trophy size={32} style={{ color: C.ion }} />
+          </div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.dim, letterSpacing: "0.22em" }}>
+            {solo ? "RUN COMPLETE" : "FINAL STANDINGS"}
+          </div>
+          <h1 className="mt-2" style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 32, color: C.star }}>
+            {solo ? `${winner.score} points` : `${winner.name} wins`}
+          </h1>
+          {!solo && (
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, color: C.ion, marginTop: 4 }}>{winner.score} PTS</div>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-2 mb-6">
+          {ranked.map((p, i) => (
+            <Panel key={p.name + i} className="p-4" style={{ borderColor: i === 0 ? `${C.ion}66` : C.edge, background: i === 0 ? `${C.ion}0E` : C.hull }}>
+              <div className="flex items-center gap-3">
+                <div
+                  className="flex items-center justify-center rounded-lg flex-shrink-0"
+                  style={{
+                    width: 32,
+                    height: 32,
+                    background: i === 0 ? `${C.ion}22` : C.hullLight,
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: i === 0 ? C.ion : C.dim,
+                  }}
+                >
+                  {i + 1}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="truncate" style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 600, fontSize: 16, color: C.star }}>
+                    {p.name}
+                  </div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.dim, marginTop: 2 }}>
+                    {p.correct}/{totalRounds} CORRECT · BEST STREAK {p.streak}
+                  </div>
+                </div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 19, fontWeight: 700, color: i === 0 ? C.ion : C.star }}>
+                  {p.score}
+                </div>
+              </div>
+            </Panel>
+          ))}
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Btn full onClick={share} style={{ padding: "15px", fontSize: 15 }}>
+            <span className="flex items-center justify-center gap-2"><Share2 size={17} /> Share to X</span>
+          </Btn>
+          <Btn full variant="solid" onClick={onAgain}>Run it again</Btn>
+          <Btn full variant="ghost" onClick={onHome}>Back to launchpad</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   ROOT
+   ============================================================ */
+export default function OrbitTrivia() {
+  const [themeId, setThemeId] = useState(null);
+  const [booted, setBooted] = useState(false);
+  const [screen, setScreen] = useState("home");
+  const [pendingMode, setPendingMode] = useState(null);
+  const [config, setConfig] = useState(null);
+  const [mode, setMode] = useState("daily");
+  const [results, setResults] = useState(null);
+  const [runKey, setRunKey] = useState(0);
+  const [stats, setStats] = useState({ best: 0, streak: 0, runs: 0 });
+  const [dailyDone, setDailyDone] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const t = await window.storage.get("orbit:theme");
+        if (t?.value && THEMES[t.value]) setThemeId(t.value);
+      } catch (e) { /* first visit — show the picker */ }
+      try {
+        const r = await window.storage.get("orbit:stats");
+        if (r?.value) setStats(JSON.parse(r.value));
+      } catch (e) { /* nothing saved yet */ }
+      try {
+        const d = await window.storage.get("orbit:daily");
+        if (d?.value && JSON.parse(d.value).date === todayKey()) setDailyDone(true);
+      } catch (e) { /* no daily record yet */ }
+      setBooted(true);
+    })();
+  }, []);
+
+  const pickTheme = async (id) => {
+    setThemeId(id);
+    try { await window.storage.set("orbit:theme", id); } catch (e) { /* not fatal */ }
+  };
+
+  const saveStats = async (next) => {
+    setStats(next);
+    try { await window.storage.set("orbit:stats", JSON.stringify(next)); } catch (e) { /* session only */ }
+  };
+
+  const afterDrivingCheck = () => {
+    if (pendingMode === "daily") {
+      setMode("daily");
+      setConfig({ players: ["You"], timer: 20, sameQ: true, count: 10, pool: QUESTIONS, difficulty: "Mixed", cats: [] });
+      setRunKey((k) => k + 1);
+      setScreen("game");
+    } else {
+      setScreen("custom");
+    }
+  };
+
+  const finish = async (data) => {
+    setResults(data);
+    setScreen("results");
+    const topScore = Math.max(...data.scores);
+    const topStreak = Math.max(...data.bestStreaks);
+    await saveStats({
+      best: Math.max(stats.best, topScore),
+      streak: Math.max(stats.streak, topStreak),
+      runs: stats.runs + 1,
+    });
+    if (mode === "daily") {
+      setDailyDone(true);
+      try { await window.storage.set("orbit:daily", JSON.stringify({ date: todayKey(), score: topScore })); } catch (e) { /* not fatal */ }
+    }
+  };
+
+  const fonts = (
+    <style>{`
+      @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500&display=swap');
+      * { -webkit-tap-highlight-color: transparent; }
+      button:focus-visible, input:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+      /* real strikes flicker — bright, stutter, re-strike, fade */
+      @keyframes strike {
+        0%   { opacity: 0; }
+        6%   { opacity: 1; }
+        14%  { opacity: .25; }
+        22%  { opacity: 1; }
+        38%  { opacity: .5; }
+        48%  { opacity: 1; }
+        70%  { opacity: .7; }
+        100% { opacity: 0; }
+      }
+      @keyframes flash {
+        0%   { transform: scale(.3); opacity: 0; }
+        12%  { transform: scale(1);  opacity: .95; }
+        30%  { transform: scale(1.1); opacity: .4; }
+        45%  { transform: scale(1.2); opacity: .7; }
+        100% { transform: scale(1.6); opacity: 0; }
+      }
+      @keyframes chargeup {
+        0%   { transform: scale(1); }
+        35%  { transform: scale(1.035); }
+        100% { transform: scale(1); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+      }
+    `}</style>
+  );
+
+  if (!booted) {
+    return (
+      <div style={{ background: "#03040A", minHeight: "100vh" }}>
+        {fonts}
+      </div>
+    );
+  }
+
+  if (!themeId) {
+    return (
+      <>
+        {fonts}
+        <PlanetPicker onPick={pickTheme} />
+      </>
+    );
+  }
+
+  const theme = THEMES[themeId];
+
+  return (
+    <ThemeCtx.Provider value={theme}>
+      {fonts}
+      <div style={{ background: theme.void, minHeight: "100vh", transition: "background .4s ease" }}>
+        {screen === "home" && (
+          <Home
+            onDaily={() => { setPendingMode("daily"); setScreen("driving"); }}
+            onCustom={() => { setPendingMode("custom"); setScreen("driving"); }}
+            stats={stats}
+            dailyDone={dailyDone}
+            themeName={theme.name}
+            onSwapTheme={() => pickTheme(themeId === "moon" ? "mars" : "moon")}
+          />
+        )}
+
+        {screen === "driving" && (
+          <>
+            <Home onDaily={() => {}} onCustom={() => {}} stats={stats} dailyDone={dailyDone} themeName={theme.name} onSwapTheme={() => {}} />
+            <DrivingCheck onConfirm={afterDrivingCheck} onCancel={() => setScreen("home")} />
+          </>
+        )}
+
+        {screen === "custom" && (
+          <CustomSetup
+            onBack={() => setScreen("home")}
+            onStart={(cfg) => { setMode("custom"); setConfig(cfg); setRunKey((k) => k + 1); setScreen("game"); }}
+          />
+        )}
+
+        {screen === "game" && config && (
+          <Game key={runKey} config={config} mode={mode} onFinish={finish} onQuit={() => setScreen("home")} />
+        )}
+
+        {screen === "results" && results && (
+          <Results
+            data={results}
+            onHome={() => setScreen("home")}
+            onAgain={() => { setRunKey((k) => k + 1); setScreen("game"); }}
+          />
+        )}
+      </div>
+    </ThemeCtx.Provider>
+  );
+}
