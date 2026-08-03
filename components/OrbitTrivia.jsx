@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
-import { Rocket, Play, Users, Trophy, X, Pause, ChevronRight, Check, Share2, Flame, Target, AlertTriangle, Repeat } from "lucide-react"
+import { Rocket, Play, Users, Trophy, X, Pause, ChevronRight, Check, Share2, Flame, Target, AlertTriangle, Repeat } from "lucide-react";
+
 /* ============================================================
    PERSISTENCE
    The prototype ran inside a preview that provided window.storage.
@@ -20,7 +21,6 @@ if (typeof window !== "undefined" && !window.storage) {
     },
   };
 }
- ;
 
 /* ============================================================
    THEMES — look only. Same questions, same scoring, same rules.
@@ -176,7 +176,6 @@ const QUESTIONS = [
   { q: "How many years was the Tesla Model X in production before its line ended in 2026?", o: ["6 years","8 years","11 years","14 years"], a: "11 years", d: "Martian", c: "Tesla" },
   { q: "What geofenced coverage area, in square miles, did Tesla's Robotaxi service in Miami initially launch with?", o: ["Roughly 1–3 sq mi","Roughly 10–14 sq mi","Roughly 50 sq mi","Roughly 100 sq mi"], a: "Roughly 10–14 sq mi", d: "Martian", c: "Tesla" },
   { q: "What communications technology did Tesla integrate into Cybercab robotaxi vehicles, benefiting SpaceX as well?", o: ["Starlink connectivity","5G-only modems","Ham radio","Bluetooth mesh networking"], a: "Starlink connectivity", d: "Martian", c: "Tesla" },
-
 ];
 
 /* ============================================================
@@ -400,9 +399,10 @@ function Logo({ size = 28, palette }) {
   );
 }
 
-function TrajectoryRail({ progress }) {
+function TrajectoryRail({ progress, heat = 0 }) {
   const C = useC();
   const p = Math.max(0, Math.min(1, progress));
+  const h = Math.min(1, heat / 6);
   return (
     <div className="relative w-11 flex-shrink-0" aria-hidden="true">
       <div className="absolute rounded-full" style={{ left: 20, top: 0, bottom: 0, width: 2, background: C.edge }} />
@@ -433,11 +433,35 @@ function TrajectoryRail({ progress }) {
           />
         </div>
       ))}
+      {h > 0 && (
+        <div
+          className="absolute rounded-full"
+          style={{
+            left: 15,
+            bottom: `calc(${p * 100}% - 22px)`,
+            width: 12,
+            height: 12 + h * 20,
+            background: `linear-gradient(180deg, ${C.abort}, transparent)`,
+            filter: `blur(${3 + h * 3}px)`,
+            opacity: 0.45 + h * 0.55,
+            transition: "bottom .7s cubic-bezier(.2,.8,.2,1), height .4s ease, opacity .4s ease",
+            animation: "flicker .35s ease-in-out infinite alternate",
+          }}
+        />
+      )}
       <div
         className="absolute"
         style={{ left: 8, bottom: `calc(${p * 100}% - 12px)`, transition: "bottom .7s cubic-bezier(.2,.8,.2,1)" }}
       >
-        <Rocket size={26} style={{ color: C.star, filter: `drop-shadow(0 0 8px ${C.plasma})`, transform: "rotate(-45deg)" }} />
+        <Rocket
+          size={26}
+          style={{
+            color: C.star,
+            filter: `drop-shadow(0 0 ${8 + h * 18}px ${h > 0 ? C.abort : C.plasma})`,
+            transform: "rotate(-45deg)",
+            animation: h >= 1 ? "blaze .9s ease-in-out infinite" : "none",
+          }}
+        />
       </div>
     </div>
   );
@@ -483,7 +507,7 @@ function makeBolt(angleDeg, reach, seed) {
     const jitter = (rnd() - 0.5) * 16;
     const perp = forkAngle + Math.PI / 2;
     const nx = fx + Math.cos(forkAngle) * fLen * t + Math.cos(perp) * jitter;
-    const ny = fy + Math.sin(forkAngle) * fLen * t + Math.cos(perp) * jitter;
+    const ny = fy + Math.sin(forkAngle) * fLen * t + Math.sin(perp) * jitter;
     fd += ` L${nx.toFixed(1)},${ny.toFixed(1)}`;
   }
   return { main: d, fork: fd };
@@ -1144,7 +1168,12 @@ function Game({ config, mode, onFinish, onQuit }) {
             <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 600, fontSize: 15, color: C.star }}>{players[pIndex]}</div>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: C.dim, letterSpacing: "0.16em" }}>
               {qIndex + 1} / {totalRounds}
-              {streaks[pIndex] >= 2 && <span style={{ color: C.plasma }}> · {streaks[pIndex]}🔥</span>}
+              {streaks[pIndex] >= 2 && (
+                <span style={{ color: streaks[pIndex] >= 6 ? C.abort : C.plasma }}>
+                  {" · "}{streaks[pIndex]}
+                  {"🔥".repeat(Math.min(3, Math.floor(streaks[pIndex] / 2)))}
+                </span>
+              )}
             </div>
           </div>
           <button onClick={() => setPaused((p) => !p)} className="p-2 -mr-2 active:scale-90" disabled={answered}>
@@ -1152,19 +1181,40 @@ function Game({ config, mode, onFinish, onQuit }) {
           </button>
         </div>
 
-        <div className="rounded-full mb-6 overflow-hidden" style={{ height: 4, background: C.edge }}>
+        <div className="rounded-full mb-2 overflow-hidden" style={{ height: 4, background: C.edge }}>
           <div
             className="h-full rounded-full"
             style={{
               width: `${(timeLeft / timer) * 100}%`,
               background: timeLeft / timer > 0.4 ? `linear-gradient(90deg, ${C.ion}, ${C.plasma})` : C.abort,
               transition: "width 1s linear, background .3s",
+              animation: !answered && timeLeft <= 3 ? "urgent .6s ease-in-out infinite" : "none",
             }}
           />
         </div>
 
+        {/* close-call countdown — fixed height so the layout never jumps */}
+        <div className="text-center mb-3" style={{ height: 28 }}>
+          {!answered && timeLeft <= 3 && timeLeft > 0 && (
+            <span
+              key={timeLeft}
+              style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 25,
+                fontWeight: 700,
+                color: C.abort,
+                display: "inline-block",
+                textShadow: `0 0 16px ${C.abort}`,
+                animation: "countIn .5s cubic-bezier(.2,.8,.2,1) both",
+              }}
+            >
+              {timeLeft}
+            </span>
+          )}
+        </div>
+
         <div className="flex gap-3 flex-1">
-          <TrajectoryRail progress={progress} />
+          <TrajectoryRail progress={progress} heat={streaks[pIndex]} />
 
           <div className="flex-1 flex flex-col">
             <div className="mb-5">
@@ -1203,8 +1253,7 @@ function Game({ config, mode, onFinish, onQuit }) {
                   } else if (isPicked) {
                     bg = `${C.abort}1E`; border = C.abort; color = C.abort;
                   } else {
-                    color = C.dim
-; bg = C.hull;
+                    color = C.dim; bg = C.hull;
                   }
                 }
                 return (
@@ -1465,6 +1514,23 @@ export default function OrbitTrivia() {
         30%  { transform: scale(1.1); opacity: .4; }
         45%  { transform: scale(1.2); opacity: .7; }
         100% { transform: scale(1.6); opacity: 0; }
+      }
+      @keyframes urgent {
+        0%, 100% { opacity: 1; }
+        50%      { opacity: .4; }
+      }
+      @keyframes countIn {
+        0%   { transform: scale(1.9); opacity: 0; }
+        40%  { transform: scale(1);   opacity: 1; }
+        100% { transform: scale(1);   opacity: 1; }
+      }
+      @keyframes blaze {
+        0%, 100% { transform: rotate(-45deg) scale(1); }
+        50%      { transform: rotate(-45deg) scale(1.14); }
+      }
+      @keyframes flicker {
+        from { transform: scaleY(1) translateY(0);      opacity: .7; }
+        to   { transform: scaleY(1.3) translateY(2px);  opacity: 1; }
       }
       @keyframes chargeup {
         0%   { transform: scale(1); }
