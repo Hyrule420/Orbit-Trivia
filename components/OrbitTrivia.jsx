@@ -370,3 +370,765 @@ function TrajectoryRail({ progress }) {
     </div>
   );
 }
+
+/* Blue electrical discharge — origin at the center of the button,
+   forking outward the way a real strike branches. */
+const BOLT_CORE = "#EAF6FF";   // white-hot channel
+const BOLT_GLOW = "#3FA9FF";   // blue halo
+const BOLT_HALO = "#0A6BE0";   // deep blue outer bloom
+
+/* Build a jagged path from the center outward toward an angle,
+   with a fork partway along. Deterministic so it doesn't jitter on re-render. */
+function makeBolt(angleDeg, reach, seed) {
+  let s = seed;
+  const rnd = () => {
+    s = (s * 9301 + 49297) % 233280;
+    return s / 233280;
+  };
+  const rad = (angleDeg * Math.PI) / 180;
+  const cx = 50, cy = 50;
+  const segs = 5;
+  let x = cx, y = cy;
+  let d = `M${cx},${cy}`;
+  const pts = [[cx, cy]];
+  for (let i = 1; i <= segs; i++) {
+    const t = i / segs;
+    const dist = reach * t;
+    const jitter = (rnd() - 0.5) * 26 * (1 - t * 0.45);
+    const perp = rad + Math.PI / 2;
+    x = cx + Math.cos(rad) * dist + Math.cos(perp) * jitter;
+    y = cy + Math.sin(rad) * dist + Math.sin(perp) * jitter;
+    d += ` L${x.toFixed(1)},${y.toFixed(1)}`;
+    pts.push([x, y]);
+  }
+  // fork off the third node
+  const [fx, fy] = pts[2];
+  const forkAngle = rad + (rnd() > 0.5 ? 0.55 : -0.55);
+  const fLen = reach * 0.42;
+  let fd = `M${fx.toFixed(1)},${fy.toFixed(1)}`;
+  for (let i = 1; i <= 3; i++) {
+    const t = i / 3;
+    const jitter = (rnd() - 0.5) * 16;
+    const perp = forkAngle + Math.PI / 2;
+    const nx = fx + Math.cos(forkAngle) * fLen * t + Math.cos(perp) * jitter;
+    const ny = fy + Math.sin(forkAngle) * fLen * t + Math.cos(perp) * jitter;
+    fd += ` L${nx.toFixed(1)},${ny.toFixed(1)}`;
+  }
+  return { main: d, fork: fd };
+}
+
+const BOLT_ANGLES = [8, 52, 128, 172, 216, 262, 308, 340];
+
+function Lightning({ active }) {
+  if (!active) return null;
+  const bolts = BOLT_ANGLES.map((a, i) => ({
+    ...makeBolt(a, 44 + (i % 3) * 9, 1337 + i * 977),
+    delay: (i % 4) * 0.045,
+  }));
+
+  const Stroke = ({ d, width, color, opacity, blur, delay }) => (
+    <path
+      d={d}
+      fill="none"
+      stroke={color}
+      strokeWidth={width}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      opacity={opacity}
+      style={{
+        filter: blur ? `blur(${blur}px)` : "none",
+        animation: `strike .5s ease-out ${delay}s both`,
+      }}
+    />
+  );
+
+  return (
+    <div
+      className="absolute inset-0 pointer-events-none"
+      style={{ overflow: "visible", zIndex: 2 }}
+      aria-hidden="true"
+    >
+      <svg
+        className="absolute"
+        style={{
+          left: "50%",
+          top: "50%",
+          width: 300,
+          height: 300,
+          marginLeft: -150,
+          marginTop: -150,
+          overflow: "visible",
+        }}
+        viewBox="0 0 100 100"
+        preserveAspectRatio="xMidYMid meet"
+      >
+        {/* three passes per bolt: outer bloom, blue channel, white core */}
+        {bolts.map((b, i) => (
+          <g key={`halo-${i}`}>
+            <Stroke d={b.main} width={7} color={BOLT_HALO} opacity={0.5} blur={3} delay={b.delay} />
+            <Stroke d={b.fork} width={5} color={BOLT_HALO} opacity={0.4} blur={3} delay={b.delay + 0.03} />
+          </g>
+        ))}
+        {bolts.map((b, i) => (
+          <g key={`glow-${i}`}>
+            <Stroke d={b.main} width={3.2} color={BOLT_GLOW} opacity={0.95} blur={0.6} delay={b.delay} />
+            <Stroke d={b.fork} width={2.2} color={BOLT_GLOW} opacity={0.85} blur={0.6} delay={b.delay + 0.03} />
+          </g>
+        ))}
+        {bolts.map((b, i) => (
+          <g key={`core-${i}`}>
+            <Stroke d={b.main} width={1.1} color={BOLT_CORE} opacity={1} delay={b.delay} />
+            <Stroke d={b.fork} width={0.8} color={BOLT_CORE} opacity={0.9} delay={b.delay + 0.03} />
+          </g>
+        ))}
+      </svg>
+
+      {/* discharge flash at the origin point */}
+      <div
+        className="absolute rounded-full"
+        style={{
+          left: "50%",
+          top: "50%",
+          width: 90,
+          height: 90,
+          marginLeft: -45,
+          marginTop: -45,
+          background: `radial-gradient(circle, ${BOLT_CORE} 0%, ${BOLT_GLOW}99 28%, ${BOLT_HALO}44 55%, transparent 72%)`,
+          animation: "flash .45s ease-out both",
+        }}
+      />
+    </div>
+  );
+}
+
+/* ============================================================
+   PLANET CHOOSER
+   ============================================================ */
+function PlanetPicker({ onPick }) {
+  const [hover, setHover] = useState(null);
+  return (
+    <ThemeCtx.Provider value={THEMES.moon}>
+      <div className="relative min-h-screen flex flex-col" style={{ background: "#03040A" }}>
+        <Starfield />
+
+        <div className="relative z-10 pt-10 pb-2 px-6 text-center">
+          <div className="flex justify-center mb-6">
+            <Logo size={30} palette={THEMES.moon} />
+          </div>
+          <h1 style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 30, color: "#E8ECF8", lineHeight: 1.1 }}>
+            Choose your side
+          </h1>
+          <p className="text-sm mt-2" style={{ color: "#7C89A8" }}>
+            Same questions either way. Pick the one you'd rather look at.
+          </p>
+        </div>
+
+        <div className="relative z-10 flex-1 flex flex-col sm:flex-row">
+          {[
+            { t: THEMES.moon, Body: MoonBody },
+            { t: THEMES.mars, Body: MarsBody },
+          ].map(({ t, Body }) => {
+            const dimmed = hover !== null && hover !== t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => onPick(t.id)}
+                onMouseEnter={() => setHover(t.id)}
+                onMouseLeave={() => setHover(null)}
+                className="relative flex-1 flex flex-col items-center justify-center gap-5 py-10 px-6 active:scale-95"
+                style={{
+                  background:
+                    t.id === "moon"
+                      ? "linear-gradient(180deg, #05070F 0%, #0B1020 100%)"
+                      : "linear-gradient(180deg, #0D0604 0%, #1C0F0A 100%)",
+                  transition: "all .4s ease",
+                  opacity: dimmed ? 0.45 : 1,
+                }}
+              >
+                <Body size={150} dim={dimmed} />
+                <div className="text-center">
+                  <div
+                    style={{
+                      fontFamily: "'Chakra Petch', sans-serif",
+                      fontWeight: 700,
+                      fontSize: 26,
+                      color: t.star,
+                      letterSpacing: "0.06em",
+                    }}
+                  >
+                    {t.name.toUpperCase()}
+                  </div>
+                  <div
+                    className="mt-1"
+                    style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: t.dim, letterSpacing: "0.14em" }}
+                  >
+                    {t.tagline.toUpperCase()}
+                  </div>
+                </div>
+                <div
+                  className="px-5 py-2.5 rounded-xl"
+                  style={{
+                    background: `linear-gradient(135deg, ${t.ion}, ${t.plasma})`,
+                    color: t.void,
+                    fontFamily: "'Chakra Petch', sans-serif",
+                    fontWeight: 700,
+                    fontSize: 13,
+                    letterSpacing: "0.06em",
+                    boxShadow: `0 0 22px ${t.ion}55`,
+                  }}
+                >
+                  PICK {t.name.toUpperCase()}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="relative z-10 text-center py-4 px-6">
+          <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#5A6580", letterSpacing: "0.16em" }}>
+            YOU CAN SWITCH ANY TIME
+          </p>
+        </div>
+      </div>
+    </ThemeCtx.Provider>
+  );
+}
+
+/* ============================================================
+   SCREENS
+   ============================================================ */
+function DrivingCheck({ onConfirm, onCancel }) {
+  const C = useC();
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-5" style={{ background: "#000000cc" }}>
+      <Panel style={{ maxWidth: 380, borderColor: `${C.abort}66` }} className="p-6">
+        <div className="flex justify-center mb-4">
+          <div
+            className="flex items-center justify-center rounded-full"
+            style={{ width: 56, height: 56, background: `${C.abort}22`, border: `1px solid ${C.abort}66` }}
+          >
+            <AlertTriangle size={26} style={{ color: C.abort }} />
+          </div>
+        </div>
+        <h2 className="text-center mb-2" style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 22, color: C.star }}>
+          Are you driving?
+        </h2>
+        <p className="text-center text-sm mb-6" style={{ color: C.dim, lineHeight: 1.6 }}>
+          Hand the phone to a passenger. Keep your eyes on the road — the trivia will still be here when you park.
+        </p>
+        <div className="flex flex-col gap-2">
+          <Btn full onClick={onConfirm}>I'm not driving</Btn>
+          <Btn full variant="ghost" onClick={onCancel}>I'm driving — go back</Btn>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function Stat({ icon, label, value, color }) {
+  const C = useC();
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <div className="flex items-center gap-1" style={{ color }}>
+        {icon}
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.16em" }}>{label}</span>
+      </div>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 20, fontWeight: 700, color: C.star }}>{value}</div>
+    </div>
+  );
+}
+
+function Home({ onDaily, onCustom, stats, dailyDone, onSwapTheme, themeName }) {
+  const C = useC();
+  return (
+    <div className="relative min-h-screen p-6 flex flex-col" style={{ background: C.void }}>
+      <Starfield />
+      <div className="relative z-10 flex flex-col flex-1 max-w-md w-full mx-auto">
+        <div className="pt-4 pb-8 flex items-center justify-between">
+          <Logo size={32} />
+          <button
+            onClick={onSwapTheme}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl active:scale-90"
+            style={{ background: C.hullLight, border: `1px solid ${C.edge}`, transition: "transform .12s" }}
+          >
+            <Repeat size={13} style={{ color: C.ion }} />
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: C.dim, letterSpacing: "0.14em" }}>
+              {themeName.toUpperCase()}
+            </span>
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <button onClick={onDaily} className="text-left active:scale-95" style={{ transition: "transform .12s" }}>
+            <Panel className="p-5" style={{ borderColor: dailyDone ? C.edge : `${C.ion}66`, boxShadow: dailyDone ? "none" : `0 0 30px ${C.ion}18` }}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Target size={16} style={{ color: C.ion }} />
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.ion, letterSpacing: "0.18em" }}>
+                      {dailyDone ? "COMPLETE" : "TODAY ONLY"}
+                    </span>
+                  </div>
+                  <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, color: C.star }}>
+                    Daily Challenge
+                  </div>
+                  <div className="text-sm mt-1" style={{ color: C.dim }}>
+                    Ten questions. Same ten for everyone today.
+                  </div>
+                </div>
+                <ChevronRight size={20} style={{ color: C.dim, marginTop: 20 }} />
+              </div>
+            </Panel>
+          </button>
+
+          <button onClick={onCustom} className="text-left active:scale-95" style={{ transition: "transform .12s" }}>
+            <Panel className="p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Users size={16} style={{ color: C.plasma }} />
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.plasma, letterSpacing: "0.18em" }}>
+                      PASS AND PLAY
+                    </span>
+                  </div>
+                  <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, color: C.star }}>
+                    Road Trip Mode
+                  </div>
+                  <div className="text-sm mt-1" style={{ color: C.dim }}>
+                    Everyone in the car takes a turn. You set the rules.
+                  </div>
+                </div>
+                <ChevronRight size={20} style={{ color: C.dim, marginTop: 20 }} />
+              </div>
+            </Panel>
+          </button>
+        </div>
+
+        <div className="mt-auto pt-8">
+          <Panel className="p-4">
+            <div className="flex items-center justify-around">
+              <Stat icon={<Trophy size={14} />} label="BEST" value={stats.best} color={C.ion} />
+              <div style={{ width: 1, height: 32, background: C.edge }} />
+              <Stat icon={<Flame size={14} />} label="STREAK" value={stats.streak} color={C.plasma} />
+              <div style={{ width: 1, height: 32, background: C.edge }} />
+              <Stat icon={<Rocket size={14} />} label="RUNS" value={stats.runs} color={C.thrust} />
+            </div>
+          </Panel>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Section({ label, children }) {
+  const C = useC();
+  return (
+    <div className="mb-6">
+      <div className="mb-3" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.dim, letterSpacing: "0.18em" }}>
+        {label}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Slider({ value, min, max, step, onChange, suffix }) {
+  const C = useC();
+  const steps = [];
+  for (let i = min; i <= max; i += step) steps.push(i);
+  return (
+    <div className="flex gap-2">
+      {steps.map((s) => {
+        const on = value === s;
+        return (
+          <button
+            key={s}
+            onClick={() => onChange(s)}
+            className="flex-1 py-3 rounded-xl active:scale-95"
+            style={{
+              background: on ? `${C.ion}18` : C.hullLight,
+              border: `1px solid ${on ? C.ion : C.edge}`,
+              color: on ? C.ion : C.dim,
+              fontFamily: "'JetBrains Mono', monospace",
+              fontWeight: 700,
+              fontSize: 14,
+              transition: "all .18s",
+            }}
+          >
+            {s}{suffix}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function CustomSetup({ onStart, onBack }) {
+  const C = useC();
+  const [players, setPlayers] = useState(["Player 1", "Player 2"]);
+  const [difficulty, setDifficulty] = useState("Mixed");
+  const [cats, setCats] = useState([]);
+  const [count, setCount] = useState(10);
+  const [timer, setTimer] = useState(15);
+  const [sameQ, setSameQ] = useState(false);
+
+  const toggleCat = (c) => setCats((p) => (p.includes(c) ? p.filter((x) => x !== c) : [...p, c]));
+  const addPlayer = () => players.length < 8 && setPlayers([...players, `Player ${players.length + 1}`]);
+  const rmPlayer = (i) => players.length > 1 && setPlayers(players.filter((_, x) => x !== i));
+  const setName = (i, v) => setPlayers(players.map((p, x) => (x === i ? v : p)));
+
+  const pool = QUESTIONS.filter((q) => (difficulty === "Mixed" || q.d === difficulty) && (cats.length === 0 || cats.includes(q.c)));
+  const enough = pool.length >= count;
+
+  return (
+    <div className="relative min-h-screen p-6" style={{ background: C.void }}>
+      <Starfield />
+      <div className="relative z-10 max-w-md mx-auto pb-8">
+        <div className="flex items-center justify-between mb-6 pt-2">
+          <h1 style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 24, color: C.star }}>Set up the run</h1>
+          <button onClick={onBack} className="active:scale-90" style={{ transition: "transform .12s" }}>
+            <X size={22} style={{ color: C.dim }} />
+          </button>
+        </div>
+
+        <Section label="WHO'S PLAYING">
+          <div className="flex flex-col gap-2">
+            {players.map((p, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input
+                  value={p}
+                  onChange={(e) => setName(i, e.target.value)}
+                  maxLength={14}
+                  className="flex-1 px-3 py-2 rounded-xl text-sm outline-none"
+                  style={{ background: C.hullLight, border: `1px solid ${C.edge}`, color: C.star, fontFamily: "'Chakra Petch', sans-serif" }}
+                />
+                {players.length > 1 && (
+                  <button onClick={() => rmPlayer(i)} className="p-2 active:scale-90">
+                    <X size={16} style={{ color: C.dim }} />
+                  </button>
+                )}
+              </div>
+            ))}
+            {players.length < 8 && <Btn variant="ghost" onClick={addPlayer} full>+ Add player</Btn>}
+          </div>
+        </Section>
+
+        <Section label="DIFFICULTY">
+          <div className="grid grid-cols-2 gap-2">
+            {["Mixed", "Earthbound", "Orbit", "Martian"].map((t) => {
+              const on = difficulty === t;
+              const col = TIER_META[t] ? C[TIER_META[t].key] : C.star;
+              return (
+                <button
+                  key={t}
+                  onClick={() => setDifficulty(t)}
+                  className="px-3 py-3 rounded-xl text-left active:scale-95"
+                  style={{ background: on ? `${col}18` : C.hullLight, border: `1px solid ${on ? col : C.edge}`, transition: "all .18s" }}
+                >
+                  <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 600, fontSize: 14, color: on ? col : C.star }}>{t}</div>
+                  {TIER_META[t] && (
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: C.dim, marginTop: 2 }}>
+                      {TIER_META[t].points} PTS
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </Section>
+
+        <Section label={`CATEGORIES ${cats.length === 0 ? "· ALL" : `· ${cats.length}`}`}>
+          <div className="flex flex-wrap gap-2">
+            {CATEGORIES.map((c) => {
+              const on = cats.includes(c);
+              return (
+                <button
+                  key={c}
+                  onClick={() => toggleCat(c)}
+                  className="px-3 py-2 rounded-full text-xs active:scale-95"
+                  style={{
+                    background: on ? `${C.plasma}22` : C.hullLight,
+                    border: `1px solid ${on ? C.plasma : C.edge}`,
+                    color: on ? C.plasma : C.dim,
+                    fontFamily: "'Chakra Petch', sans-serif",
+                    fontWeight: 600,
+                    transition: "all .18s",
+                  }}
+                >
+                  {c}
+                </button>
+              );
+            })}
+          </div>
+        </Section>
+
+        <Section label="QUESTIONS PER PLAYER">
+          <Slider value={count} min={5} max={20} step={5} onChange={setCount} suffix="" />
+        </Section>
+
+        <Section label="SECONDS PER TURN">
+          <Slider value={timer} min={5} max={45} step={5} onChange={setTimer} suffix="s" />
+        </Section>
+
+        <Section label="QUESTION SET">
+          <button
+            onClick={() => setSameQ(!sameQ)}
+            className="w-full p-4 rounded-xl text-left active:scale-95"
+            style={{ background: C.hullLight, border: `1px solid ${sameQ ? C.ion : C.edge}`, transition: "all .18s" }}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 600, fontSize: 14, color: C.star }}>
+                  {sameQ ? "Everyone gets the same questions" : "Everyone gets different questions"}
+                </div>
+                <div className="text-xs mt-1" style={{ color: C.dim }}>
+                  {sameQ ? "Head to head. Same test, no excuses." : "Fresh questions each turn. Nobody overhears an answer."}
+                </div>
+              </div>
+              <div
+                className="rounded-full flex-shrink-0"
+                style={{ width: 44, height: 26, background: sameQ ? C.ion : C.edge, padding: 3, transition: "background .2s" }}
+              >
+                <div
+                  className="rounded-full"
+                  style={{
+                    width: 20,
+                    height: 20,
+                    background: C.void,
+                    transform: sameQ ? "translateX(18px)" : "translateX(0)",
+                    transition: "transform .2s cubic-bezier(.2,.8,.2,1)",
+                  }}
+                />
+              </div>
+            </div>
+          </button>
+        </Section>
+
+        {!enough && (
+          <div className="p-3 rounded-xl mb-4 text-xs" style={{ background: `${C.abort}18`, border: `1px solid ${C.abort}55`, color: C.abort }}>
+            Only {pool.length} questions match those filters. Widen the categories or difficulty, or drop the question count.
+          </div>
+        )}
+
+        <Btn full disabled={!enough} onClick={() => onStart({ players, difficulty, cats, count, timer, sameQ, pool })} style={{ padding: "16px", fontSize: 16 }}>
+          <span className="flex items-center justify-center gap-2"><Play size={18} /> Launch</span>
+        </Btn>
+      </div>
+    </div>
+  );
+}
+
+function Handoff({ name, onReady, roundNum, totalRounds }) {
+  const C = useC();
+  return (
+    <div className="relative min-h-screen flex flex-col items-center justify-center p-6" style={{ background: C.void }}>
+      <Starfield />
+      <div className="relative z-10 text-center max-w-sm">
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.dim, letterSpacing: "0.22em", marginBottom: 20 }}>
+          QUESTION {roundNum} OF {totalRounds}
+        </div>
+        <div
+          className="mx-auto mb-6 flex items-center justify-center rounded-full"
+          style={{ width: 88, height: 88, background: `linear-gradient(135deg, ${C.ion}22, ${C.plasma}33)`, border: `1px solid ${C.ion}55` }}
+        >
+          <Rocket size={38} style={{ color: C.ion, transform: "rotate(-45deg)" }} />
+        </div>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.dim, letterSpacing: "0.2em" }}>
+          PASS THE PHONE TO
+        </div>
+        <h1 className="my-3" style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 38, color: C.star }}>
+          {name}
+        </h1>
+        <p className="text-sm mb-8" style={{ color: C.dim }}>
+          Tap when you've got it. The timer starts immediately.
+        </p>
+        <Btn full onClick={onReady} style={{ padding: "16px", fontSize: 16 }}>I'm ready</Btn>
+      </div>
+    </div>
+  );
+}
+
+function Game({ config, mode, onFinish, onQuit }) {
+  const C = useC();
+  const { players, timer, sameQ, count } = config;
+  const totalRounds = count;
+
+  const [qIndex, setQIndex] = useState(0);
+  const [pIndex, setPIndex] = useState(0);
+  const [scores, setScores] = useState(() => players.map(() => 0));
+  const [correctCounts, setCorrectCounts] = useState(() => players.map(() => 0));
+  const [streaks, setStreaks] = useState(() => players.map(() => 0));
+  const [bestStreaks, setBestStreaks] = useState(() => players.map(() => 0));
+  const [phase, setPhase] = useState(players.length > 1 ? "handoff" : "asking");
+  const [picked, setPicked] = useState(null);
+  const [timeLeft, setTimeLeft] = useState(timer);
+  const [paused, setPaused] = useState(false);
+  const [shake, setShake] = useState(false);
+  const [zap, setZap] = useState(false);
+
+  const deckRef = useRef(null);
+  if (deckRef.current === null) {
+    if (sameQ || players.length === 1) {
+      const shared = shuffle(config.pool, mode === "daily" ? todaySeed() : undefined).slice(0, totalRounds);
+      deckRef.current = players.map(() => shared);
+    } else {
+      const big = shuffle(config.pool);
+      deckRef.current = players.map((_, i) => {
+        const out = [];
+        for (let r = 0; r < totalRounds; r++) out.push(big[(r * players.length + i) % big.length]);
+        return out;
+      });
+    }
+  }
+
+  const question = deckRef.current[pIndex][qIndex];
+  const shuffledOpts = React.useMemo(() => (question ? shuffle(question.o, question.q.length * 7 + qIndex) : []), [question, qIndex]);
+
+  const lockIn = useCallback(
+    (choice) => {
+      if (picked !== null) return;
+      const isRight = choice === question.a;
+      setPicked(choice ?? "__timeout__");
+      if (isRight) {
+        setZap(true);
+        setTimeout(() => setZap(false), 750);
+      } else {
+        setShake(true);
+        setTimeout(() => setShake(false), 420);
+      }
+      const speedBonus = isRight ? Math.round(TIER_META[question.d].points * 0.5 * (timeLeft / timer)) : 0;
+      const gain = isRight ? TIER_META[question.d].points + speedBonus : 0;
+
+      setScores((s) => s.map((v, i) => (i === pIndex ? v + gain : v)));
+      setCorrectCounts((s) => s.map((v, i) => (i === pIndex ? v + (isRight ? 1 : 0) : v)));
+      setStreaks((s) => {
+        const next = s.map((v, i) => (i === pIndex ? (isRight ? v + 1 : 0) : v));
+        setBestStreaks((b) => b.map((v, i) => Math.max(v, next[i])));
+        return next;
+      });
+      setPhase("revealed");
+    },
+    [picked, question, timeLeft, timer, pIndex]
+  );
+
+  useEffect(() => {
+    if (phase !== "asking" || paused) return;
+    if (timeLeft <= 0) {
+      lockIn(null);
+      return;
+    }
+    const t = setTimeout(() => setTimeLeft((v) => v - 1), 1000);
+    return () => clearTimeout(t);
+  }, [phase, timeLeft, paused, lockIn]);
+
+  const advance = () => {
+    const lastPlayer = pIndex === players.length - 1;
+    const lastQuestion = qIndex === totalRounds - 1;
+    if (lastPlayer && lastQuestion) {
+      onFinish({ players, scores, correctCounts, bestStreaks, totalRounds });
+      return;
+    }
+    setPicked(null);
+    setTimeLeft(timer);
+    if (lastPlayer) {
+      setPIndex(0);
+      setQIndex((v) => v + 1);
+    } else {
+      setPIndex((v) => v + 1);
+    }
+    setPhase(players.length > 1 ? "handoff" : "asking");
+  };
+
+  if (phase === "handoff") {
+    return (
+      <Handoff
+        name={players[pIndex]}
+        roundNum={qIndex + 1}
+        totalRounds={totalRounds}
+        onReady={() => {
+          setTimeLeft(timer);
+          setPhase("asking");
+        }}
+      />
+    );
+  }
+
+  const tierColor = C[TIER_META[question.d].key];
+  const answered = picked !== null;
+  const timedOut = picked === "__timeout__";
+  const gotIt = picked === question.a;
+  const maxScore = totalRounds * 300 * 1.5;
+  const progress = Math.min(1, scores[pIndex] / (maxScore * 0.6));
+
+  return (
+    <div className="relative min-h-screen flex flex-col" style={{ background: C.void }}>
+      <Starfield />
+      <div className="relative z-10 flex-1 flex flex-col max-w-md w-full mx-auto p-5">
+        <div className="flex items-center justify-between mb-5">
+          <button onClick={onQuit} className="p-2 -ml-2 active:scale-90">
+            <X size={20} style={{ color: C.dim }} />
+          </button>
+          <div className="text-center">
+            <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 600, fontSize: 15, color: C.star }}>{players[pIndex]}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: C.dim, letterSpacing: "0.16em" }}>
+              {qIndex + 1} / {totalRounds}
+              {streaks[pIndex] >= 2 && <span style={{ color: C.plasma }}> · {streaks[pIndex]}🔥</span>}
+            </div>
+          </div>
+          <button onClick={() => setPaused((p) => !p)} className="p-2 -mr-2 active:scale-90" disabled={answered}>
+            <Pause size={20} style={{ color: answered ? C.edge : paused ? C.ion : C.dim }} />
+          </button>
+        </div>
+
+        <div className="rounded-full mb-6 overflow-hidden" style={{ height: 4, background: C.edge }}>
+          <div
+            className="h-full rounded-full"
+            style={{
+              width: `${(timeLeft / timer) * 100}%`,
+              background: timeLeft / timer > 0.4 ? `linear-gradient(90deg, ${C.ion}, ${C.plasma})` : C.abort,
+              transition: "width 1s linear, background .3s",
+            }}
+          />
+        </div>
+
+        <div className="flex gap-3 flex-1">
+          <TrajectoryRail progress={progress} />
+
+          <div className="flex-1 flex flex-col">
+            <div className="mb-5">
+              <div className="flex items-center gap-2 mb-3">
+                <span
+                  className="px-2 py-1 rounded-md"
+                  style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 9,
+                    letterSpacing: "0.14em",
+                    color: tierColor,
+                    background: `${tierColor}18`,
+                    border: `1px solid ${tierColor}44`,
+                  }}
+                >
+                  {question.d.toUpperCase()}
+                </span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: C.dim, letterSpacing: "0.14em" }}>
+                  {question.c.toUpperCase()}
+                </span>
+              </div>
+              <h2 style={{ fontFamily: "Inter, system-ui, sans-serif", fontSize: 20, lineHeight: 1.4, color: C.star, fontWeight: 500 }}>
+                {question.q}
+              </h2>
+            </div>
+
+            <div className="flex flex-col gap-2.5 mb-4">
+              {shuffledOpts.map((opt) => {
+                const isCorrect = opt === question.a;
+                const isPicked = opt === picked;
+                let bg = C.hull, border = C.edge, color = C.star, glow = "none";
+                if (answered) {
+                  if (isCorrect) {
+                    bg = `${C.thrust}1E`; border = C.thrust; color = C.thrust;
+                    glow = `0 0 26px ${C.thrust}55`;
+                  } else if (isPicked) {
+                    bg = `${C.abort}1E`; border = C.abort; color = C.abort;
+                  } else {
+                    color = C.dim
