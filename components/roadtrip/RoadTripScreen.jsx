@@ -79,7 +79,7 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
   const saveTimerRef = useRef(null);
   const wakeLockRef = useRef(null);
 
-  const { pos, status, error, source, simPlaying, simSpeed, setSimSpeed, api } = usePositionSource(ROUTE);
+  const { pos, status, error, errorCode, source, simPlaying, simSpeed, setSimSpeed, api } = usePositionSource(ROUTE);
 
   /* ---------- content sanity check, development only ---------- */
   useEffect(() => {
@@ -229,10 +229,18 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
 
   /* ---------- starting and ending ---------- */
   const startGpsTrip = useCallback(() => {
-    onOptIn?.();
     setView("map");
     api.startGps();
-  }, [api, onOptIn]);
+  }, [api]);
+
+  /* Only remember "yes, use my location" once a real fix has actually
+     arrived. Recording it on the button tap was a bug: if the phone
+     then couldn't get a position, every future visit skipped the intro
+     and dropped you straight onto a broken map with no way back to the
+     simulated drive. */
+  useEffect(() => {
+    if (source === "gps" && status === "live" && !optedIn) onOptIn?.();
+  }, [source, status, optedIn, onOptIn]);
 
   const startSimTrip = useCallback(() => {
     setView("map");
@@ -444,6 +452,55 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
   const simulating = source === "sim" || source === "manual";
   const offCorridor = nearest && nearest.distanceM > 80000;
 
+  /* Work out what to actually tell someone whose location isn't working.
+     "Location is off" was the old message for every one of these, which
+     is useless when the phone's location genuinely IS on — the setting
+     and the fix are two different things, and Airplane Mode breaks the
+     second while leaving the first looking perfectly fine. */
+  const gpsTrouble = (() => {
+    if (source !== "gps") return null;
+    if (status === "live" || status === "asking") return null;
+
+    if (status === "insecure") {
+      return {
+        title: "NEEDS A SECURE CONNECTION",
+        detail: "Browsers only hand out location over https. This page is on plain http, so the prompt never appears.",
+        checks: ["Open this over an https link", "The Vercel preview link works — a local dev address usually won't"],
+      };
+    }
+    if (status === "denied") {
+      return {
+        title: "PERMISSION REFUSED",
+        detail: "Location services may well be on — this is the browser or the OS specifically refusing this site.",
+        checks: [
+          "iPhone: Settings → Privacy & Security → Location Services → Safari Websites → While Using",
+          "iPhone: Settings → Safari → Location → Ask or Allow",
+          "Reload the page and tap Allow when the prompt appears",
+          "Private Browsing blocks location on some iOS versions",
+        ],
+      };
+    }
+    if (status === "unavailable") {
+      return {
+        title: "CAN'T GET A FIX",
+        detail: "Permission is fine — your phone just can't work out where it is. On an iPhone this is almost always Airplane Mode, which switches the GPS radio off but leaves Wi-Fi on, so pages still load normally.",
+        checks: [
+          "Turn Airplane Mode off",
+          "Check Settings → Privacy & Security → Location Services is on",
+          "Step outside or near a window — indoors can be enough to block it",
+        ],
+      };
+    }
+    if (status === "searching") {
+      return {
+        title: "LOOKING FOR A SIGNAL",
+        detail: "Your phone hasn't found a position yet. This usually sorts itself out — it's still trying.",
+        checks: ["Airplane Mode will stop this working entirely", "Indoors and underground both block GPS", "Give it up to a minute outside"],
+      };
+    }
+    return null;
+  })();
+
   return (
     <div className="min-h-screen max-w-md mx-auto px-4 pt-5" style={{ paddingBottom: 110 }}>
       <div className="flex items-center justify-between mb-4">
@@ -493,16 +550,27 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
         onTeleport={simulating ? api.teleport : undefined}
       />
 
-      {error && status === "denied" && (
+      {gpsTrouble && (
         <Panel className="p-4 mt-3" style={{ borderColor: `${C.abort}55` }}>
-          <Kicker color={C.abort}>LOCATION IS OFF</Kicker>
+          <Kicker color={C.abort}>{gpsTrouble.title}</Kicker>
           <p className="text-sm mt-2" style={{ color: C.dim, lineHeight: 1.6 }}>
-            {error} You can still take the simulated drive. To switch it back on: tap the padlock in the
-            address bar on Chrome, or Settings → Safari → Location on iPhone.
+            {gpsTrouble.detail}
           </p>
-          <div className="mt-3">
-            <Btn variant="ghost" onClick={startSimTrip}>Simulated drive instead</Btn>
+          <ul className="mt-3 flex flex-col gap-1.5">
+            {gpsTrouble.checks.map((c) => (
+              <li key={c} className="flex gap-2 text-sm" style={{ color: C.dim, lineHeight: 1.5 }}>
+                <span style={{ color: C.ion }}>·</span>
+                <span>{c}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="flex gap-2 mt-4">
+            <Btn onClick={api.startGps}>Try again</Btn>
+            <Btn variant="ghost" onClick={startSimTrip}>Simulated drive</Btn>
           </div>
+          <p className="mt-3" style={{ color: C.dim, opacity: 0.6, fontSize: 10, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em" }}>
+            {status.toUpperCase()}{errorCode ? ` · CODE ${errorCode}` : ""}
+          </p>
         </Panel>
       )}
 
