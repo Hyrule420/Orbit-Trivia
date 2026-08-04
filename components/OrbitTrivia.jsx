@@ -1155,7 +1155,7 @@ function Home({ onDaily, onCustom, onEscape, onGeoTrip, geoBest = 0, escapeBest 
                         </span>
                       </div>
                       <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, color: C.star }}>
-                        Road Trip Mode
+                        Crew Mode
                       </div>
                       <div className="text-sm mt-1" style={{ color: C.dim }}>
                         Everyone in the car takes a turn. You set the rules.
@@ -1840,7 +1840,7 @@ function Game({ config, mode, onFinish, onQuit }) {
   const [dead, setDead] = useState(false);
   const escapeMarkRef = useRef(0);
 
-  /* The clock is fixed in Daily and Road Trip, but tightens every
+  /* The clock is fixed in Daily and Crew Mode, but tightens every
      question in an Escape run. */
   const liveTimer = isEscape ? escapeTimer(qIndex) : timer;
 
@@ -2630,7 +2630,7 @@ function Results({ data, onHome, onAgain, profile = {} }) {
       {celebrating && (
         <LaunchCelebration
           small={!perfect}
-          kicker={perfect ? "FLAWLESS RUN" : "ROAD TRIP CHAMPION"}
+          kicker={perfect ? "FLAWLESS RUN" : "CREW CHAMPION"}
           title={perfect ? "PERFECT" : winner.name.toUpperCase()}
           onDone={() => setCelebrating(false)}
         />
