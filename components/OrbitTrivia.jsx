@@ -232,24 +232,52 @@ const SFX = (() => {
   let noiseBuf = null;
   let engineSrc = null;
   let engineGain = null;
+  let stuck = 0;
+
+  const build = () => {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    ctx = new AC();
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -14;
+    comp.ratio.value = 8;
+    bus = ctx.createGain();
+    bus.gain.value = 0.85;
+    bus.connect(comp);
+    comp.connect(ctx.destination);
+    noiseBuf = null;   // buffers belong to the context that made them
+    return true;
+  };
+
+  /* Tear it all down and start over. Some iOS builds park a context
+     in a state it will never come back from, and the only reliable
+     way out is a brand new one. */
+  const rebuild = () => {
+    try { if (ctx) ctx.close(); } catch (e) { /* already gone */ }
+    ctx = null;
+    bus = null;
+    noiseBuf = null;
+    engineSrc = null;
+    engineGain = null;
+    try { build(); } catch (e) { /* audio unavailable */ }
+  };
 
   const live = () => {
     if (!enabled || typeof window === "undefined") return false;
     try {
-      if (!ctx) {
-        const AC = window.AudioContext || window.webkitAudioContext;
-        if (!AC) return false;
-        ctx = new AC();
-        const comp = ctx.createDynamicsCompressor();
-        comp.threshold.value = -14;
-        comp.ratio.value = 8;
-        bus = ctx.createGain();
-        bus.gain.value = 0.85;
-        bus.connect(comp);
-        comp.connect(ctx.destination);
+      if (!ctx && !build()) return false;
+      /* WebKit parks the context in "interrupted" — a state that isn't
+         in the spec — whenever the app is backgrounded or the screen
+         locks. Checking only for "suspended" meant audio never came
+         back once that happened. Resume on anything that isn't running. */
+      if (ctx.state !== "running") {
+        ctx.resume().catch(() => {});
+        stuck += 1;
+        if (stuck > 3) { rebuild(); stuck = 0; }
+        return false;
       }
-      if (ctx.state === "suspended") ctx.resume().catch(() => {});
-      return ctx.state === "running";
+      stuck = 0;
+      return true;
     } catch (e) {
       return false;
     }
@@ -302,6 +330,12 @@ const SFX = (() => {
 
   return {
     unlock() { live(); },
+    /* Called when the app comes back to the foreground. iOS may refuse
+       to resume outside a gesture, but the next tap retries anyway. */
+    revive() {
+      if (!enabled || !ctx) { live(); return; }
+      try { if (ctx.state !== "running") ctx.resume().catch(() => {}); } catch (e) { /* next tap will retry */ }
+    },
     setEnabled(v) {
       enabled = !!v;
       if (!enabled) { try { this.engineOff(0.08); } catch (e) {} }
@@ -2897,9 +2931,19 @@ export default function OrbitTrivia() {
     const open = () => SFX.unlock();
     window.addEventListener("pointerdown", open);
     window.addEventListener("touchstart", open);
+    /* Coming back from the home screen, a phone call, or a locked
+       screen leaves audio interrupted — try to bring it back rather
+       than waiting for the player to notice it's gone. */
+    const wake = () => { if (!document.hidden) SFX.revive(); };
+    document.addEventListener("visibilitychange", wake);
+    window.addEventListener("pageshow", wake);
+    window.addEventListener("focus", wake);
     return () => {
       window.removeEventListener("pointerdown", open);
       window.removeEventListener("touchstart", open);
+      document.removeEventListener("visibilitychange", wake);
+      window.removeEventListener("pageshow", wake);
+      window.removeEventListener("focus", wake);
     };
   }, []);
 
