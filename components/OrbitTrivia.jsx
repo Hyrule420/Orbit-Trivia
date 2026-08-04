@@ -202,6 +202,15 @@ const todaySeed = () => {
   return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
 };
 
+/* Real vibration where the browser exposes it (mainly Android Chrome).
+   iOS Safari has no Vibration API at all, so this silently no-ops there —
+   callers pair it with a visual pulse so something always happens. */
+const buzz = (pattern) => {
+  try {
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(pattern);
+  } catch (e) { /* unsupported or blocked — the visual pulse still carries it */ }
+};
+
 /* Local-date key. Deliberately not toISOString(), which is UTC — that would
    roll the "day" over at a different moment than todaySeed() above, so a
    player could see tomorrow's questions while still marked done for today. */
@@ -318,7 +327,7 @@ function MarsBody({ size = 200, dim = false }) {
 /* ============================================================
    SHARED UI
    ============================================================ */
-function Starfield() {
+function Starfield({ comets = true }) {
   const C = useC();
   const stars = React.useMemo(
     () =>
@@ -331,6 +340,15 @@ function Starfield() {
       })),
     []
   );
+
+  /* Long cycles with a brief visible window, so a comet crosses every
+     17-31s rather than streaming past constantly. */
+  const trails = [
+    { top: "8%", dur: 17, delay: 3 },
+    { top: "26%", dur: 23, delay: 11 },
+    { top: "54%", dur: 31, delay: 19 },
+  ];
+
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
       {stars.map((s) => (
@@ -340,6 +358,25 @@ function Starfield() {
           style={{ left: `${s.x}%`, top: `${s.y}%`, width: s.s, height: s.s, background: C.star, opacity: s.o }}
         />
       ))}
+
+      {comets &&
+        trails.map((t, i) => (
+          <div
+            key={`c-${i}`}
+            className="absolute"
+            style={{
+              top: t.top,
+              left: "-16%",
+              width: 130,
+              height: 2,
+              background: `linear-gradient(90deg, transparent, ${C.star})`,
+              borderRadius: 2,
+              filter: `drop-shadow(0 0 6px ${C.ion})`,
+              opacity: 0,
+              animation: `comet ${t.dur}s linear ${t.delay}s infinite`,
+            }}
+          />
+        ))}
     </div>
   );
 }
@@ -381,21 +418,53 @@ function Panel({ children, style: st, className = "" }) {
   );
 }
 
-function Logo({ size = 28, palette }) {
+function Logo({ size = 28, palette, rocketPhase = "idle", onRocketTap }) {
   const ctx = useC();
   const C = palette || ctx;
   return (
     <div className="flex items-center gap-2">
       <div
-        className="flex items-center justify-center rounded-xl"
+        onClick={onRocketTap}
+        className={`flex items-center justify-center rounded-xl ${onRocketTap ? "active:scale-90" : ""}`}
         style={{
           width: size + 12,
           height: size + 12,
           background: `linear-gradient(135deg, ${C.ion}22, ${C.plasma}33)`,
           border: `1px solid ${C.ion}55`,
+          cursor: onRocketTap ? "pointer" : "default",
+          transition: "transform .12s ease",
         }}
       >
-        <Rocket size={size - 6} style={{ color: C.ion }} />
+        <span
+          style={{
+            position: "relative",
+            display: "inline-block",
+            animation:
+              rocketPhase === "flying"
+                ? "miniLaunch 1.7s cubic-bezier(.5,.02,.85,.4) both"
+                : rocketPhase === "returning"
+                ? "miniReturn .6s cubic-bezier(.2,.8,.2,1) both"
+                : "none",
+          }}
+        >
+          <Rocket size={size - 6} style={{ color: C.ion, animation: "drift 4.5s ease-in-out infinite" }} />
+          {rocketPhase === "flying" && (
+            <span
+              style={{
+                position: "absolute",
+                left: "50%",
+                top: "68%",
+                marginLeft: -6,
+                width: 12,
+                height: 34,
+                background: `linear-gradient(180deg, #FFFFFF 0%, ${C.ion} 25%, ${C.abort} 60%, transparent 100%)`,
+                filter: "blur(3px)",
+                borderRadius: "50% 50% 50% 50% / 22% 22% 78% 78%",
+                animation: "plume .14s ease-in-out infinite alternate",
+              }}
+            />
+          )}
+        </span>
       </div>
       <div>
         <div
@@ -761,9 +830,26 @@ function Stat({ icon, label, value, color }) {
   );
 }
 
+/* Four jagged shards that together tile a card. Shared fracture edges,
+   so when they separate the background shows through real gaps. */
+const CARD_SHARDS = [
+  { clip: "polygon(0% 0%, 48% 0%, 52% 20%, 46% 45%, 30% 40%, 14% 48%, 0% 44%)", x: "-14px", y: "-12px", r: "-3deg" },
+  { clip: "polygon(48% 0%, 100% 0%, 100% 66%, 84% 70%, 68% 62%, 51% 70%, 46% 45%, 52% 20%)", x: "16px", y: "-9px", r: "2.5deg" },
+  { clip: "polygon(0% 44%, 14% 48%, 30% 40%, 46% 45%, 51% 70%, 49% 100%, 0% 100%)", x: "-12px", y: "12px", r: "2deg" },
+  { clip: "polygon(51% 70%, 68% 62%, 84% 70%, 100% 66%, 100% 100%, 49% 100%)", x: "14px", y: "11px", r: "-2.5deg" },
+];
+
 function Home({ onDaily, onCustom, stats, dailyDone, onSwapTheme, themeName, profile, dayStreak, onOpenProfile, streakMilestone, onDismissMilestone }) {
   const C = useC();
   const named = (profile.name || "").trim();
+  const [rocketPhase, setRocketPhase] = useState("idle");
+  const tapRocket = () => {
+    if (rocketPhase !== "idle") return;
+    buzz([15, 40, 15, 40, 60]);
+    setRocketPhase("flying");
+    setTimeout(() => setRocketPhase("returning"), 1700);
+    setTimeout(() => setRocketPhase("idle"), 2350);
+  };
   const milestoneLabel =
     streakMilestone === 7 ? "ONE WEEK STRONG" : streakMilestone === 30 ? "ONE MONTH STRONG" : streakMilestone === 100 ? "CENTURION" : null;
   return (
@@ -821,48 +907,158 @@ function Home({ onDaily, onCustom, stats, dailyDone, onSwapTheme, themeName, pro
         </div>
 
         <div className="flex flex-col gap-3">
-          <button onClick={onDaily} className="text-left active:scale-95" style={{ transition: "transform .12s" }}>
-            <Panel className="p-5" style={{ borderColor: dailyDone ? C.edge : `${C.ion}66`, boxShadow: dailyDone ? "none" : `0 0 30px ${C.ion}18` }}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Target size={16} style={{ color: C.ion }} />
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.ion, letterSpacing: "0.18em" }}>
-                      {dailyDone ? "COMPLETE" : "TODAY ONLY"}
-                    </span>
+          {[
+            {
+              key: "daily",
+              onTap: onDaily,
+              hit: 0.95,
+              card: (
+                <Panel className="p-5" style={{ borderColor: dailyDone ? C.edge : `${C.ion}66`, boxShadow: dailyDone ? "none" : `0 0 30px ${C.ion}18` }}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Target size={16} style={{ color: C.ion }} />
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.ion, letterSpacing: "0.18em" }}>
+                          {dailyDone ? "COMPLETE" : "TODAY ONLY"}
+                        </span>
+                      </div>
+                      <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, color: C.star }}>
+                        Daily Challenge
+                      </div>
+                      <div className="text-sm mt-1" style={{ color: C.dim }}>
+                        Ten questions. Same ten for everyone today.
+                      </div>
+                    </div>
+                    <ChevronRight size={20} style={{ color: C.dim, marginTop: 20 }} />
                   </div>
-                  <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, color: C.star }}>
-                    Daily Challenge
+                </Panel>
+              ),
+            },
+            {
+              key: "road",
+              onTap: onCustom,
+              hit: 0.75,
+              card: (
+                <Panel className="p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Users size={16} style={{ color: C.plasma }} />
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.plasma, letterSpacing: "0.18em" }}>
+                          PASS AND PLAY
+                        </span>
+                      </div>
+                      <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, color: C.star }}>
+                        Road Trip Mode
+                      </div>
+                      <div className="text-sm mt-1" style={{ color: C.dim }}>
+                        Everyone in the car takes a turn. You set the rules.
+                      </div>
+                    </div>
+                    <ChevronRight size={20} style={{ color: C.dim, marginTop: 20 }} />
                   </div>
-                  <div className="text-sm mt-1" style={{ color: C.dim }}>
-                    Ten questions. Same ten for everyone today.
-                  </div>
-                </div>
-                <ChevronRight size={20} style={{ color: C.dim, marginTop: 20 }} />
-              </div>
-            </Panel>
-          </button>
+                </Panel>
+              ),
+            },
+          ].map(({ key, onTap, hit, card }) => (
+            <div key={key} className="relative">
+              {/* the real, tappable card — hides at the moment of impact */}
+              <button
+                onClick={onTap}
+                className="text-left active:scale-95 w-full block"
+                style={{
+                  transition: "transform .12s",
+                  animation:
+                    rocketPhase === "flying"
+                      ? `cardvanish .01s linear ${hit}s both`
+                      : rocketPhase === "returning"
+                      ? "cardreturn .01s linear .5s both"
+                      : "none",
+                }}
+              >
+                {card}
+              </button>
 
-          <button onClick={onCustom} className="text-left active:scale-95" style={{ transition: "transform .12s" }}>
-            <Panel className="p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Users size={16} style={{ color: C.plasma }} />
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.plasma, letterSpacing: "0.18em" }}>
-                      PASS AND PLAY
-                    </span>
+              {/* the same card as four shards — separate on impact, weld back on return */}
+              {(rocketPhase === "flying" || rocketPhase === "returning") &&
+                CARD_SHARDS.map((sh, i) => (
+                  <div
+                    key={i}
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      clipPath: sh.clip,
+                      WebkitClipPath: sh.clip,
+                      "--sx": sh.x,
+                      "--sy": sh.y,
+                      "--sr": sh.r,
+                      animation:
+                        rocketPhase === "flying"
+                          ? `shatter .55s cubic-bezier(.2,.8,.2,1) ${hit}s both`
+                          : "reassemble .5s cubic-bezier(.2,.8,.2,1) both",
+                    }}
+                  >
+                    {card}
                   </div>
-                  <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, color: C.star }}>
-                    Road Trip Mode
-                  </div>
-                  <div className="text-sm mt-1" style={{ color: C.dim }}>
-                    Everyone in the car takes a turn. You set the rules.
-                  </div>
-                </div>
-                <ChevronRight size={20} style={{ color: C.dim, marginTop: 20 }} />
-              </div>
-            </Panel>
+                ))}
+            </div>
+          ))}
+        </div>
+
+        <div className="flex-1 flex items-end justify-center pb-2" style={{ minHeight: 150 }}>
+          <button
+            onClick={tapRocket}
+            aria-label="Launch the rocket"
+            className="relative active:scale-95"
+            style={{ background: "transparent", border: "none", cursor: "pointer", padding: "20px 40px 28px", transition: "transform .12s ease" }}
+          >
+            <span
+              style={{
+                position: "relative",
+                display: "inline-block",
+                animation:
+                  rocketPhase === "flying"
+                    ? "miniLaunch 1.9s cubic-bezier(.5,.02,.85,.4) both"
+                    : rocketPhase === "returning"
+                    ? "miniReturn .6s cubic-bezier(.2,.8,.2,1) both"
+                    : "drift 4.5s ease-in-out infinite",
+              }}
+            >
+              <Rocket
+                size={96}
+                style={{ color: C.star, transform: "rotate(-45deg)", filter: `drop-shadow(0 0 28px ${C.ion})` }}
+              />
+              {rocketPhase === "flying" && (
+                <span
+                  style={{
+                    position: "absolute",
+                    left: "50%",
+                    top: 76,
+                    marginLeft: -13,
+                    width: 26,
+                    height: 96,
+                    background: `linear-gradient(180deg, #FFFFFF 0%, ${C.ion} 24%, ${C.abort} 58%, transparent 100%)`,
+                    filter: "blur(6px)",
+                    borderRadius: "50% 50% 50% 50% / 22% 22% 78% 78%",
+                    animation: "plume .14s ease-in-out infinite alternate",
+                  }}
+                />
+              )}
+            </span>
+            {/* launch pad */}
+            <span
+              className="absolute"
+              style={{
+                left: "50%",
+                bottom: 10,
+                marginLeft: -46,
+                width: 92,
+                height: 5,
+                borderRadius: 4,
+                background: `linear-gradient(90deg, transparent, ${C.edge}, transparent)`,
+                boxShadow: rocketPhase === "flying" ? `0 0 34px ${C.abort}` : `0 0 14px ${C.ion}33`,
+                transition: "box-shadow .3s ease",
+              }}
+            />
           </button>
         </div>
 
@@ -1224,6 +1420,121 @@ function Handoff({ name, onReady, roundNum, totalRounds }) {
   );
 }
 
+const FLAVOR_LINES = [
+  "TELEMETRY NOMINAL",
+  "FUEL AT CAPACITY",
+  "GUIDANCE LOCKED",
+  "WEATHER IS GO",
+  "RANGE IS CLEAR",
+  "PROPELLANT PRESSURIZED",
+  "STRONGBACK RETRACTED",
+  "FLIGHT COMPUTER ARMED",
+  "TRAJECTORY PLOTTED",
+];
+
+/* 3-2-1 on the pad before the first question. Tap anywhere to skip —
+   nobody wants to sit through this on their twentieth run. */
+function CountdownLaunch({ onDone }) {
+  const C = useC();
+  const [n, setN] = useState(3);
+  const flavorOffset = useRef(Math.floor(Math.random() * FLAVOR_LINES.length));
+
+  useEffect(() => {
+    const t = setTimeout(() => (n > 0 ? setN(n - 1) : onDone()), n > 0 ? 850 : 950);
+    return () => clearTimeout(t);
+  }, [n, onDone]);
+
+  const lifting = n === 0;
+
+  useEffect(() => {
+    if (lifting) buzz([15, 40, 15, 40, 60]);
+  }, [lifting]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center cursor-pointer"
+      style={{ background: C.void }}
+      onClick={onDone}
+    >
+      <Starfield comets={false} />
+
+      {/* the number, or LIFTOFF */}
+      <div className="relative z-10 text-center" style={{ marginBottom: "18vh" }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.dim, letterSpacing: "0.32em" }}>
+          {lifting ? "ALL SYSTEMS GO" : "LAUNCH SEQUENCE"}
+        </div>
+        <div
+          key={n}
+          style={{
+            fontFamily: "'Chakra Petch', sans-serif",
+            fontWeight: 700,
+            fontSize: lifting ? 48 : 96,
+            color: C.star,
+            textShadow: `0 0 40px ${lifting ? C.abort : C.ion}`,
+            lineHeight: 1.1,
+            marginTop: 8,
+            animation: lifting ? "verdictIn .5s cubic-bezier(.2,.8,.2,1) both" : "countBeat .85s ease-out both",
+          }}
+        >
+          {lifting ? "LIFTOFF" : n}
+        </div>
+        {!lifting && (
+          <div
+            key={`f${n}`}
+            style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 9,
+              color: C.ion,
+              letterSpacing: "0.24em",
+              marginTop: 12,
+              animation: "verdictIn .4s ease-out .15s both",
+            }}
+          >
+            {FLAVOR_LINES[(flavorOffset.current + n) % FLAVOR_LINES.length]}
+          </div>
+        )}
+      </div>
+
+      {/* rocket on the pad, engines building, then gone */}
+      <div
+        className="absolute"
+        style={{
+          left: "50%",
+          bottom: "6vh",
+          marginLeft: -26,
+          animation: lifting ? "liftoff 1.1s cubic-bezier(.5,.02,.85,.4) both" : "none",
+        }}
+      >
+        <div style={{ animation: "padshake .1s linear infinite" }}>
+          <Rocket size={52} style={{ color: C.star, transform: "rotate(-45deg)", filter: `drop-shadow(0 0 20px ${C.ion})` }} />
+          <div
+            className="absolute"
+            style={{
+              left: "50%",
+              top: 40,
+              marginLeft: -14,
+              width: 28,
+              height: lifting ? 110 : 34 + (3 - n) * 16,
+              background: `linear-gradient(180deg, #FFFFFF 0%, ${C.ion} 24%, ${C.abort} 58%, transparent 100%)`,
+              filter: "blur(6px)",
+              borderRadius: "50% 50% 50% 50% / 22% 22% 78% 78%",
+              transition: "height .5s ease",
+              animation: "plume .16s ease-in-out infinite alternate",
+            }}
+          />
+        </div>
+      </div>
+
+      <div
+        className="absolute inset-x-0 text-center"
+        style={{ bottom: 20, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: C.dim, letterSpacing: "0.18em" }}
+      >
+        TAP TO SKIP
+      </div>
+    </div>
+  );
+}
+
 function Game({ config, mode, onFinish, onQuit }) {
   const C = useC();
   const { players, timer, sameQ, count } = config;
@@ -1235,16 +1546,21 @@ function Game({ config, mode, onFinish, onQuit }) {
   const [correctCounts, setCorrectCounts] = useState(() => players.map(() => 0));
   const [streaks, setStreaks] = useState(() => players.map(() => 0));
   const [bestStreaks, setBestStreaks] = useState(() => players.map(() => 0));
-  const [phase, setPhase] = useState(players.length > 1 ? "handoff" : "asking");
+  const [phase, setPhase] = useState("countdown");
   const [picked, setPicked] = useState(null);
   const [timeLeft, setTimeLeft] = useState(timer);
   const [paused, setPaused] = useState(false);
   const [shake, setShake] = useState(false);
   const [zap, setZap] = useState(false);
   const [promo, setPromo] = useState(null);
+  const [gainInfo, setGainInfo] = useState(null);
+  const [pulse, setPulse] = useState(null);
 
   const milestoneRef = useRef(null);
   if (milestoneRef.current === null) milestoneRef.current = players.map(() => 0);
+
+  const wasWrongRef = useRef(null);
+  if (wasWrongRef.current === null) wasWrongRef.current = players.map(() => false);
 
   const deckRef = useRef(null);
   if (deckRef.current === null) {
@@ -1268,16 +1584,24 @@ function Game({ config, mode, onFinish, onQuit }) {
     (choice) => {
       if (picked !== null) return;
       const isRight = choice === question.a;
+      const timedOut = choice === null;
       setPicked(choice ?? "__timeout__");
       if (isRight) {
         setZap(true);
         setTimeout(() => setZap(false), 750);
+        buzz(30);
       } else {
         setShake(true);
         setTimeout(() => setShake(false), 420);
+        buzz(timedOut ? 90 : [25, 60, 25]);
       }
+      setPulse(isRight ? "good" : "bad");
+      setTimeout(() => setPulse(null), 260);
       const speedBonus = isRight ? Math.round(TIER_META[question.d].points * 0.5 * (timeLeft / timer)) : 0;
       const gain = isRight ? TIER_META[question.d].points + speedBonus : 0;
+      const comeback = isRight && wasWrongRef.current[pIndex];
+      wasWrongRef.current[pIndex] = !isRight;
+      setGainInfo(isRight ? { base: TIER_META[question.d].points, bonus: speedBonus, comeback } : null);
 
       if (isRight) {
         const maxS = totalRounds * 300 * 1.5;
@@ -1322,6 +1646,7 @@ function Game({ config, mode, onFinish, onQuit }) {
       return;
     }
     setPicked(null);
+    setGainInfo(null);
     setTimeLeft(timer);
     if (lastPlayer) {
       setPIndex(0);
@@ -1331,6 +1656,17 @@ function Game({ config, mode, onFinish, onQuit }) {
     }
     setPhase(players.length > 1 ? "handoff" : "asking");
   };
+
+  if (phase === "countdown") {
+    return (
+      <CountdownLaunch
+        onDone={() => {
+          setTimeLeft(timer);
+          setPhase(players.length > 1 ? "handoff" : "asking");
+        }}
+      />
+    );
+  }
 
   if (phase === "handoff") {
     return (
@@ -1355,11 +1691,21 @@ function Game({ config, mode, onFinish, onQuit }) {
 
   return (
     <div className="relative min-h-screen flex flex-col" style={{ background: C.void }}>
-      <Starfield />
+      <Starfield comets={false} />
       <div
         className="relative z-10 flex-1 flex flex-col max-w-md w-full mx-auto p-5"
         style={{ animation: shake ? "screenshake .4s ease-out" : "none" }}
       >
+        {pulse && (
+          <div
+            className="fixed inset-0 pointer-events-none"
+            style={{
+              zIndex: 40,
+              boxShadow: `inset 0 0 60px ${pulse === "good" ? C.thrust : C.abort}`,
+              animation: "edgepulse .26s ease-out both",
+            }}
+          />
+        )}
         {promo && (
           <div className="absolute inset-x-0 z-30 text-center pointer-events-none" style={{ top: "36%" }}>
             <div style={{ animation: "promoPop 1.7s ease-out both" }}>
@@ -1512,16 +1858,48 @@ function Game({ config, mode, onFinish, onQuit }) {
             {answered && (
               <div className="mt-auto">
                 <div
-                  className="p-4 rounded-xl mb-3 text-center"
+                  className="p-4 rounded-xl mb-3 text-center relative"
                   style={{ background: gotIt ? `${C.thrust}12` : `${C.abort}12`, border: `1px solid ${gotIt ? C.thrust : C.abort}44` }}
                 >
-                  <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 18, color: gotIt ? C.thrust : C.abort }}>
-                    {gotIt ? "Nailed it" : timedOut ? "Out of time" : "Not quite"}
+                  <div
+                    style={{
+                      fontFamily: "'Chakra Petch', sans-serif",
+                      fontWeight: 700,
+                      fontSize: 18,
+                      color: gotIt ? (gainInfo?.comeback ? C.plasma : C.thrust) : C.abort,
+                      textShadow: gotIt && gainInfo?.comeback ? `0 0 18px ${C.plasma}` : "none",
+                    }}
+                  >
+                    {gotIt ? (gainInfo?.comeback ? "Back in it" : "Nailed it") : timedOut ? "Out of time" : "Not quite"}
                   </div>
-                  {gotIt && (
-                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: C.star, marginTop: 4 }}>
-                      +{TIER_META[question.d].points + Math.round(TIER_META[question.d].points * 0.5 * (timeLeft / timer))} pts
-                    </div>
+                  {gotIt && gainInfo && (
+                    <>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: C.star, marginTop: 4 }}>
+                        +{gainInfo.base + gainInfo.bonus} pts
+                      </div>
+                      {gainInfo.bonus > 0 && (
+                        <div
+                          className="absolute inset-x-0 pointer-events-none"
+                          style={{ top: 6, animation: "speedFloat 1.5s cubic-bezier(.2,.8,.2,1) both" }}
+                        >
+                          <span
+                            className="px-2 py-1 rounded-md"
+                            style={{
+                              fontFamily: "'JetBrains Mono', monospace",
+                              fontSize: 11,
+                              fontWeight: 700,
+                              letterSpacing: "0.08em",
+                              color: C.ion,
+                              background: `${C.ion}1A`,
+                              border: `1px solid ${C.ion}66`,
+                              textShadow: `0 0 12px ${C.ion}`,
+                            }}
+                          >
+                            +{gainInfo.bonus} SPEED
+                          </span>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
                 <Btn full onClick={advance} style={{ padding: "15px", fontSize: 15 }}>
@@ -1670,6 +2048,7 @@ function Results({ data, onHome, onAgain, profile = {} }) {
   const perfect = winner.correct === totalRounds && totalRounds >= 5;
   const winnerLaunch = !perfect && !solo;
   const [celebrating, setCelebrating] = useState(perfect || winnerLaunch);
+  const newBest = solo && (data.prevBest || 0) > 0 && winner.score > data.prevBest;
 
   const share = () => {
     const ride = profile.model && profile.model !== "Not yet" ? ` ${profile.model} owner here.` : "";
@@ -1710,6 +2089,22 @@ function Results({ data, onHome, onAgain, profile = {} }) {
           <h1 className="mt-2" style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 32, color: C.star }}>
             {solo ? `${winner.score} points` : `${winner.name} wins`}
           </h1>
+          {newBest && (
+            <div
+              className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-full"
+              style={{
+                background: `${C.thrust}14`,
+                border: `1px solid ${C.thrust}66`,
+                boxShadow: `0 0 24px ${C.thrust}33`,
+                animation: "verdictIn .6s cubic-bezier(.2,.8,.2,1) .4s both",
+              }}
+            >
+              <Trophy size={13} style={{ color: C.thrust }} />
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, color: C.thrust, letterSpacing: "0.16em" }}>
+                NEW PERSONAL BEST
+              </span>
+            </div>
+          )}
           {!solo && (
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, color: C.ion, marginTop: 4 }}>{winner.score} PTS</div>
           )}
@@ -1842,7 +2237,7 @@ export default function OrbitTrivia() {
   };
 
   const finish = async (data) => {
-    setResults(data);
+    setResults({ ...data, prevBest: stats.best });
     setScreen("results");
     const topScore = Math.max(...data.scores);
     const topStreak = Math.max(...data.bestStreaks);
@@ -1949,6 +2344,60 @@ export default function OrbitTrivia() {
         78%  { opacity: 1; }
         100% { transform: scale(1);  opacity: 0; }
       }
+      @keyframes countBeat {
+        0%   { transform: scale(2.2); opacity: 0; }
+        18%  { transform: scale(1);   opacity: 1; }
+        75%  { transform: scale(1);   opacity: 1; }
+        100% { transform: scale(.88); opacity: .35; }
+      }
+      /* brief visible window inside a long cycle = an occasional comet */
+      @keyframes comet {
+        0%   { transform: translate(0, 0) rotate(14deg);          opacity: 0; }
+        1%   { opacity: 0; }
+        3%   { opacity: .9; }
+        7%   { opacity: .9; }
+        9%   { transform: translate(150vw, 34vh) rotate(14deg);   opacity: 0; }
+        100% { transform: translate(150vw, 34vh) rotate(14deg);   opacity: 0; }
+      }
+      @keyframes speedFloat {
+        0%   { transform: translateY(14px) scale(.8); opacity: 0; }
+        20%  { transform: translateY(0) scale(1.08);  opacity: 1; }
+        32%  { transform: translateY(0) scale(1); }
+        70%  { transform: translateY(-6px);          opacity: 1; }
+        100% { transform: translateY(-26px);         opacity: 0; }
+      }
+      @keyframes edgepulse {
+        0%   { opacity: 0; }
+        30%  { opacity: 1; }
+        100% { opacity: 0; }
+      }
+      @keyframes drift {
+        0%, 100% { transform: translateY(0) rotate(0deg); }
+        50%      { transform: translateY(-3px) rotate(-5deg); }
+      }
+      @keyframes miniLaunch {
+        0%   { transform: translateY(0); }
+        14%  { transform: translateY(2px); }
+        100% { transform: translateY(-105vh); }
+      }
+      @keyframes miniReturn {
+        0%   { transform: translateY(-64px); opacity: 0; }
+        60%  { transform: translateY(3px);   opacity: 1; }
+        100% { transform: translateY(0);     opacity: 1; }
+      }
+      @keyframes shatter {
+        0%   { transform: translate(0, 0) rotate(0deg); }
+        18%  { transform: translate(calc(var(--sx) * .3), calc(var(--sy) * .3)) rotate(calc(var(--sr) * .5)); }
+        60%  { transform: translate(var(--sx), var(--sy)) rotate(var(--sr)); }
+        100% { transform: translate(var(--sx), var(--sy)) rotate(var(--sr)); }
+      }
+      @keyframes reassemble {
+        0%   { transform: translate(var(--sx), var(--sy)) rotate(var(--sr)); filter: none; }
+        70%  { transform: translate(0, 0) rotate(0deg); filter: brightness(1.7); }
+        100% { transform: translate(0, 0) rotate(0deg); filter: none; }
+      }
+      @keyframes cardvanish { from { opacity: 1; } to { opacity: 0; } }
+      @keyframes cardreturn { from { opacity: 0; } to { opacity: 1; } }
       @keyframes chargeup {
         0%   { transform: scale(1); }
         35%  { transform: scale(1.035); }
