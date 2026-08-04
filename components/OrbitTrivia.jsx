@@ -1,9 +1,15 @@
-import React, { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
-import { Rocket, Play, Users, Trophy, X, Pause, ChevronRight, Check, Share2, Share, Flame, Target, AlertTriangle, Repeat, User, Volume2, VolumeX } from "lucide-react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { Rocket, Play, Users, Trophy, X, Pause, ChevronRight, Check, Share2, Share, Flame, Target, AlertTriangle, Repeat, User, Volume2, VolumeX, MapPin } from "lucide-react";
 
 /* The question bank and its lookup tables live in lib/questions.js
    so the content can be edited without touching game code. */
 import { QUESTIONS, CATEGORIES, TESLA_MODELS, TIER_META } from "../lib/questions";
+
+/* The colour palette and the two small helpers below used to live in this
+   file. They moved to lib/ so the road trip screen can share them. */
+import { THEMES, ThemeCtx, useC } from "../lib/theme";
+import { shuffle, buzz } from "../lib/util";
+import RoadTripScreen from "./roadtrip/RoadTripScreen";
 
 /* ============================================================
    PERSISTENCE
@@ -27,74 +33,11 @@ if (typeof window !== "undefined" && !window.storage) {
 }
 
 /* ============================================================
-   THEMES — look only. Same questions, same scoring, same rules.
-   ============================================================ */
-const THEMES = {
-  moon: {
-    id: "moon",
-    name: "Moon",
-    tagline: "Cold, precise, unforgiving",
-    void: "#05070F",
-    hull: "#0E1424",
-    hullLight: "#161E33",
-    edge: "#243049",
-    ion: "#22D3EE",
-    plasma: "#C026D3",
-    thrust: "#34D399",
-    abort: "#FB4E5A",
-    star: "#E8ECF8",
-    dim: "#7C89A8",
-  },
-  mars: {
-    id: "mars",
-    name: "Mars",
-    tagline: "Hot, dusty, a long way from home",
-    void: "#0D0604",
-    hull: "#1C0F0A",
-    hullLight: "#2A1811",
-    edge: "#45291D",
-    ion: "#FF8C42",
-    plasma: "#E85D75",
-    thrust: "#7BD389",
-    abort: "#FF4D4D",
-    star: "#FFF0E6",
-    dim: "#A8836F",
-  },
-};
-
-const ThemeCtx = createContext(THEMES.moon);
-const useC = () => useContext(ThemeCtx);
-
-
-/* ============================================================
    HELPERS
    ============================================================ */
-const shuffle = (arr, seed) => {
-  const a = [...arr];
-  let s = seed ?? Math.floor(Math.random() * 100000);
-  const rnd = () => {
-    s = (s * 9301 + 49297) % 233280;
-    return s / 233280;
-  };
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(rnd() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-};
-
 const todaySeed = () => {
   const d = new Date();
   return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
-};
-
-/* Real vibration where the browser exposes it (mainly Android Chrome).
-   iOS Safari has no Vibration API at all, so this silently no-ops there —
-   callers pair it with a visual pulse so something always happens. */
-const buzz = (pattern) => {
-  try {
-    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(pattern);
-  } catch (e) { /* unsupported or blocked — the visual pulse still carries it */ }
 };
 
 /* ============================================================
@@ -1082,7 +1025,7 @@ function InstallHint({ onDismiss, androidPrompt }) {
   );
 }
 
-function Home({ onDaily, onCustom, onEscape, escapeBest = 0, stats, dailyDone, onSwapTheme, themeName, profile, dayStreak, onOpenProfile, streakMilestone, onDismissMilestone, soundOn, onToggleSound, showInstall, onDismissInstall, androidPrompt }) {
+function Home({ onDaily, onCustom, onEscape, onGeoTrip, geoBest = 0, escapeBest = 0, stats, dailyDone, onSwapTheme, themeName, profile, dayStreak, onOpenProfile, streakMilestone, onDismissMilestone, soundOn, onToggleSound, showInstall, onDismissInstall, androidPrompt }) {
   const C = useC();
   const named = (profile.name || "").trim();
   const [rocketPhase, setRocketPhase] = useState("idle");
@@ -1212,7 +1155,7 @@ function Home({ onDaily, onCustom, onEscape, escapeBest = 0, stats, dailyDone, o
                         </span>
                       </div>
                       <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, color: C.star }}>
-                        Road Trip Mode
+                        Crew Mode
                       </div>
                       <div className="text-sm mt-1" style={{ color: C.dim }}>
                         Everyone in the car takes a turn. You set the rules.
@@ -1242,6 +1185,32 @@ function Home({ onDaily, onCustom, onEscape, escapeBest = 0, stats, dailyDone, o
                       </div>
                       <div className="text-sm mt-1" style={{ color: C.dim }}>
                         Keep answering, keep accelerating. Reach 11.2 km/s to break free.
+                      </div>
+                    </div>
+                    <ChevronRight size={20} style={{ color: C.dim, marginTop: 20 }} />
+                  </div>
+                </Panel>
+              ),
+            },
+            {
+              key: "geotrip",
+              onTap: onGeoTrip,
+              hit: 0.42,
+              card: (
+                <Panel className="p-5" style={{ borderColor: `${C.thrust}44` }}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <MapPin size={16} style={{ color: C.thrust }} />
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.thrust, letterSpacing: "0.18em" }}>
+                          {geoBest > 0 ? `BEST ${geoBest} PTS` : "NATURE COAST"}
+                        </span>
+                      </div>
+                      <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, color: C.star }}>
+                        Road Trip Florida
+                      </div>
+                      <div className="text-sm mt-1" style={{ color: C.dim }}>
+                        Questions unlock as you drive past real places on US-19.
                       </div>
                     </div>
                     <ChevronRight size={20} style={{ color: C.dim, marginTop: 20 }} />
@@ -1871,7 +1840,7 @@ function Game({ config, mode, onFinish, onQuit }) {
   const [dead, setDead] = useState(false);
   const escapeMarkRef = useRef(0);
 
-  /* The clock is fixed in Daily and Road Trip, but tightens every
+  /* The clock is fixed in Daily and Crew Mode, but tightens every
      question in an Escape run. */
   const liveTimer = isEscape ? escapeTimer(qIndex) : timer;
 
@@ -2661,7 +2630,7 @@ function Results({ data, onHome, onAgain, profile = {} }) {
       {celebrating && (
         <LaunchCelebration
           small={!perfect}
-          kicker={perfect ? "FLAWLESS RUN" : "ROAD TRIP CHAMPION"}
+          kicker={perfect ? "FLAWLESS RUN" : "CREW CHAMPION"}
           title={perfect ? "PERFECT" : winner.name.toUpperCase()}
           onDone={() => setCelebrating(false)}
         />
@@ -2772,6 +2741,12 @@ export default function OrbitTrivia() {
   const [streakMilestone, setStreakMilestone] = useState(null);
   const [soundOn, setSoundOn] = useState(true);
   const [escapeBest, setEscapeBest] = useState(0);
+  /* Road trip mode keeps its own score and its own "you already said
+     yes to location" flag. Deliberately separate from `stats` — an
+     untimed, open-ended mode would make the timed-run numbers
+     meaningless if it were mixed in. */
+  const [geoBest, setGeoBest] = useState(0);
+  const [geoOptIn, setGeoOptIn] = useState(false);
   const [installDismissed, setInstallDismissed] = useState(false);
   const [androidEvt, setAndroidEvt] = useState(null);
 
@@ -2874,6 +2849,14 @@ export default function OrbitTrivia() {
         const ih = await window.storage.get("orbit:installhint");
         if (ih?.value === "off") setInstallDismissed(true);
       } catch (e) { /* never dismissed */ }
+      try {
+        const gb = await window.storage.get("orbit:geo:best");
+        if (gb?.value) setGeoBest(parseInt(gb.value, 10) || 0);
+      } catch (e) { /* no road trip yet */ }
+      try {
+        const go = await window.storage.get("orbit:geo:optin");
+        if (go?.value === "on") setGeoOptIn(true);
+      } catch (e) { /* never agreed to share location */ }
       setBooted(true);
     })();
   }, []);
@@ -2908,8 +2891,25 @@ export default function OrbitTrivia() {
     try { await window.storage.set("orbit:stats", JSON.stringify(next)); } catch (e) { /* session only */ }
   };
 
+  const saveGeoBest = async (pts) => {
+    if (!(pts > geoBest)) return;
+    setGeoBest(pts);
+    try { await window.storage.set("orbit:geo:best", String(pts)); } catch (e) { /* session only */ }
+  };
+
+  const saveGeoOptIn = async () => {
+    setGeoOptIn(true);
+    try { await window.storage.set("orbit:geo:optin", "on"); } catch (e) { /* session only */ }
+  };
+
   const afterDrivingCheck = () => {
     const who = (profile.name || "").trim() || "You";
+    if (pendingMode === "geotrip") {
+      /* Road trip doesn't use the Game component at all, so there is no
+         deck to build and no run to key — it just opens its own screen. */
+      setScreen("geotrip");
+      return;
+    }
     if (pendingMode === "daily") {
       setMode("daily");
       setConfig({ players: [who], timer: 20, sameQ: true, count: 10, pool: QUESTIONS, difficulty: "Mixed", cats: [] });
@@ -3146,6 +3146,8 @@ export default function OrbitTrivia() {
             onDaily={() => { setPendingMode("daily"); setScreen("driving"); }}
             onCustom={() => { setPendingMode("custom"); setScreen("driving"); }}
             onEscape={() => { setPendingMode("escape"); setScreen("driving"); }}
+            onGeoTrip={() => { setPendingMode("geotrip"); setScreen("driving"); }}
+            geoBest={geoBest}
             escapeBest={escapeBest}
             stats={stats}
             dailyDone={dailyDone}
@@ -3174,6 +3176,8 @@ export default function OrbitTrivia() {
               onDaily={() => {}}
               onCustom={() => {}}
               onEscape={() => {}}
+              onGeoTrip={() => {}}
+              geoBest={geoBest}
               escapeBest={escapeBest}
               stats={stats}
               dailyDone={dailyDone}
@@ -3198,6 +3202,16 @@ export default function OrbitTrivia() {
           <CustomSetup
             onBack={() => setScreen("home")}
             onStart={(cfg) => { setMode("custom"); setConfig(cfg); setRunKey((k) => k + 1); setScreen("game"); }}
+          />
+        )}
+
+        {screen === "geotrip" && (
+          <RoadTripScreen
+            onHome={() => setScreen("home")}
+            optedIn={geoOptIn}
+            onOptIn={saveGeoOptIn}
+            onTripEnd={saveGeoBest}
+            geoBest={geoBest}
           />
         )}
 
