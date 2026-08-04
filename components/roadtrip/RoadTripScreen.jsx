@@ -396,8 +396,9 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
           Road Trip Florida
         </h1>
         <p className="text-center text-sm mb-6" style={{ color: C.dim, lineHeight: 1.65 }}>
-          Drive US-19 between Fanning Springs and Hudson and questions unlock as you pass real places —
-          the springs, the manatees, the mermaids, the canal that was never finished.
+          Drive US-19 between Fanning Springs and Tarpon Springs and questions unlock as you pass real
+          places — the springs, the manatees, the mermaids, the canal that was never finished, and the
+          Greek sponge divers at the end of the road.
         </p>
 
         <Panel className="p-4 mb-4">
