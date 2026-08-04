@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
-import { Rocket, Play, Users, Trophy, X, Pause, ChevronRight, Check, Share2, Flame, Target, AlertTriangle, Repeat, User } from "lucide-react";
+import { Rocket, Play, Users, Trophy, X, Pause, ChevronRight, Check, Share2, Share, Flame, Target, AlertTriangle, Repeat, User, Volume2, VolumeX } from "lucide-react";
 
 /* ============================================================
    PERSISTENCE
@@ -75,13 +75,13 @@ const TESLA_MODELS = ["Model S", "Model 3", "Model X", "Model Y", "Cybertruck", 
    QUESTION BANK
    ============================================================ */
 const QUESTIONS = [
-  { q: "In what year was Tesla Motors founded by Martin Eberhard and Marc Tarpenning?", o: ["2001", "2003", "2004", "2006"], a: "2003", d: "Earthbound", c: "Tesla" },
+  { q: "In what year did Martin Eberhard and Marc Tarpenning found the company that became Tesla?", o: ["2001", "2003", "2004", "2006"], a: "2003", d: "Earthbound", c: "Tesla" },
   { q: "When did Elon Musk first invest in Tesla and join as Chairman of the Board?", o: ["2003", "2004", "2006", "2008"], a: "2004", d: "Earthbound", c: "Tesla" },
   { q: "What was the first production vehicle delivered by Tesla?", o: ["Model S", "Roadster", "Model 3", "Model X"], a: "Roadster", d: "Earthbound", c: "Tesla" },
   { q: "In what year did Tesla go public with its IPO on the Nasdaq?", o: ["2008", "2010", "2012", "2013"], a: "2010", d: "Earthbound", c: "Tesla" },
   { q: "What year did Tesla begin deliveries of the Model S?", o: ["2010", "2012", "2014", "2015"], a: "2012", d: "Earthbound", c: "Tesla" },
-  { q: "Which Tesla vehicle was the first to offer Autopilot hardware as standard, starting in late 2014?", o: ["Roadster", "Model S", "Model 3", "Cybertruck"], a: "Model S", d: "Orbit", c: "FSD" },
-  { q: "In October 2016, Tesla announced all new vehicles would ship with hardware for full self-driving. What sensor change came with it?", o: ["Removal of all cameras", "8 surround cameras for 360° visibility", "Exclusive reliance on LiDAR", "Only ultrasonic sensors"], a: "8 surround cameras for 360° visibility", d: "Orbit", c: "FSD" },
+  { q: "In what year did Tesla begin shipping Autopilot hardware in its vehicles?", o: ["2012", "2014", "2016", "2018"], a: "2014", d: "Orbit", c: "FSD" },
+  { q: "In October 2016, Tesla announced all new vehicles would ship with FSD-capable hardware. What sensor change came with it?", o: ["Removal of all cameras", "8 surround cameras for 360° visibility", "Reliance on LiDAR alone", "Ultrasonic sensors alone"], a: "8 surround cameras for 360° visibility", d: "Orbit", c: "FSD" },
   { q: "When did Tesla first release FSD Beta to a limited group of customers?", o: ["2018", "October 2020", "2022", "2024"], a: "October 2020", d: "Orbit", c: "FSD" },
   { q: "FSD version 12 marked a major architectural shift in 2023–2024. What was the primary change?", o: ["Addition of more LiDAR", "End-to-end neural network replacing most explicit C++ code", "Switch to radar-only", "Complete removal of cameras"], a: "End-to-end neural network replacing most explicit C++ code", d: "Martian", c: "FSD" },
   { q: "Where is Tesla's original vehicle factory located (formerly the NUMMI plant)?", o: ["Austin, Texas", "Fremont, California", "Reno, Nevada", "Shanghai"], a: "Fremont, California", d: "Earthbound", c: "Gigafactory" },
@@ -90,35 +90,35 @@ const QUESTIONS = [
   { q: "In what year did both Gigafactory Berlin-Brandenburg and Gigafactory Texas begin vehicle production?", o: ["2020", "2021", "2022", "2023"], a: "2022", d: "Orbit", c: "Gigafactory" },
   { q: "SpaceX was founded in which year?", o: ["2001", "2002", "2004", "2006"], a: "2002", d: "Earthbound", c: "SpaceX" },
   { q: "What was the payload on the first Falcon Heavy test flight in February 2018?", o: ["A Starlink satellite", "Elon Musk's personal Tesla Roadster with Starman", "A Dragon capsule", "A weather satellite"], a: "Elon Musk's personal Tesla Roadster with Starman", d: "Earthbound", c: "SpaceX" },
-  { q: "What is the primary long-term goal of the Starship program?", o: ["Only satellite deployment", "Making life multi-planetary, including Mars missions", "Only lunar tourism", "Atmospheric research only"], a: "Making life multi-planetary, including Mars missions", d: "Earthbound", c: "Starship" },
-  { q: "By mid-2026, roughly how many integrated Starship flight tests had been conducted?", o: ["5", "Around 13", "25", "50"], a: "Around 13", d: "Martian", c: "Starship" },
+  { q: "What is the primary long-term goal of the Starship program?", o: ["Replacing commercial airliners", "Making life multi-planetary", "Servicing the ISS", "Deploying weather satellites"], a: "Making life multi-planetary", d: "Earthbound", c: "Starship" },
+  { q: "By mid-2026, how many integrated Starship flight tests had SpaceX conducted?", o: ["8", "13", "19", "25"], a: "13", d: "Martian", c: "Starship" },
   { q: "What major upper-stage capability did Starship flights in 2025–2026 demonstrate?", o: ["Permanent orbital station", "In-space Raptor engine relight and payload deployment", "Crewed lunar landing", "Interstellar travel"], a: "In-space Raptor engine relight and payload deployment", d: "Orbit", c: "Starship" },
   { q: "Neuralink was co-founded by Elon Musk in which year?", o: ["2014", "2016", "2018", "2020"], a: "2016", d: "Earthbound", c: "Neuralink" },
   { q: "When did Neuralink perform its first human implant?", o: ["2022", "January 2024", "2025", "2023"], a: "January 2024", d: "Orbit", c: "Neuralink" },
-  { q: "By early 2026, approximately how many people had received Neuralink implants in clinical trials?", o: ["3", "12", "21", "50"], a: "21", d: "Martian", c: "Neuralink" },
+  { q: "How many ultra-thin flexible threads does the Neuralink N1 implant use to record brain activity?", o: ["16", "32", "64", "128"], a: "64", d: "Martian", c: "Neuralink" },
   { q: "What is the name of Neuralink's speech restoration clinical trial?", o: ["PRIME", "VOICE", "Blindsight", "CONVOY"], a: "VOICE", d: "Martian", c: "Neuralink" },
   { q: "In what year did Elon Musk complete the acquisition of Twitter?", o: ["2021", "2022", "2023", "2024"], a: "2022", d: "Earthbound", c: "Twitter/X" },
   { q: "What was the agreed purchase price for Twitter in 2022?", o: ["$30 billion", "$44 billion", "$60 billion", "$20 billion"], a: "$44 billion", d: "Earthbound", c: "Twitter/X" },
   { q: "What did Elon Musk rebrand Twitter as after the acquisition?", o: ["Twttr", "X", "MuskNet", "Starlink Social"], a: "X", d: "Earthbound", c: "Twitter/X" },
   { q: "In March 2025, Elon Musk's xAI acquired X in an all-stock deal. What entity then acquired xAI itself in early 2026?", o: ["Tesla", "SpaceX", "Neuralink", "The Boring Company"], a: "SpaceX", d: "Martian", c: "Twitter/X" },
-  { q: "What year was The Boring Company founded?", o: ["2014", "2016", "2019", "2021"], a: "2016", d: "Orbit", c: "Elon Personal" },
+  { q: "In what year did Elon Musk found his tunnel-construction company?", o: ["2014", "2016", "2019", "2021"], a: "2016", d: "Orbit", c: "Elon Personal" },
   { q: "xAI was founded by Elon Musk in which year?", o: ["2021", "2022", "2023", "2024"], a: "2023", d: "Earthbound", c: "Elon Personal" },
-  { q: "Which Tesla model was the first mass-market vehicle aiming for a roughly $35,000 starting price?", o: ["Model S", "Model X", "Model 3", "Model Y"], a: "Model 3", d: "Earthbound", c: "Tesla" },
+  { q: "Tesla unveiled which model in 2016 as its first vehicle targeting a $35,000 starting price?", o: ["Model S", "Model X", "Model 3", "Model Y"], a: "Model 3", d: "Earthbound", c: "Tesla" },
   { q: "Tesla's first quarterly profit as a public company was reported in which year?", o: ["2010", "2013", "2016", "2018"], a: "2013", d: "Orbit", c: "Tesla" },
-  { q: "What significant event involving a Tesla vehicle occurred on the first Falcon Heavy launch?", o: ["It was used as a battery pack", "A Roadster was sent into heliocentric orbit as the dummy payload", "It landed on the Moon", "It was destroyed on the pad"], a: "A Roadster was sent into heliocentric orbit as the dummy payload", d: "Earthbound", c: "SpaceX" },
+  { q: "SpaceX's Starbase launch and production site is located in which U.S. state?", o: ["Florida", "Texas", "California", "New Mexico"], a: "Texas", d: "Earthbound", c: "SpaceX" },
   { q: "Gigafactory Shanghai reached 1 million vehicles produced in roughly how many years after opening?", o: ["Less than 3 years", "5 years", "7 years", "10 years"], a: "Less than 3 years", d: "Orbit", c: "Gigafactory" },
   { q: "By July 2026, Tesla had produced approximately how many total vehicles across its factories?", o: ["5 million", "10 million", "15 million", "2 million"], a: "10 million", d: "Martian", c: "Tesla" },
   { q: "Which hardware version introduced significantly higher resolution cameras and a more powerful computer for FSD?", o: ["HW1", "HW2", "HW3", "HW4 / AI4"], a: "HW4 / AI4", d: "Orbit", c: "FSD" },
   { q: "What is the name of Neuralink's implant system used in human trials?", o: ["Link", "N1", "Telepathy Chip", "Cortex"], a: "N1", d: "Orbit", c: "Neuralink" },
   { q: "In which U.S. state is Gigafactory Texas, and Tesla's current global headquarters, located?", o: ["California", "Nevada", "Texas", "New York"], a: "Texas", d: "Earthbound", c: "Gigafactory" },
-  { q: "What major Starship milestone involves catching the booster with the launch tower arms, nicknamed \"Mechazilla\"?", o: ["Soft ocean landing only", "Tower catch of the Super Heavy booster", "Parachute recovery", "No recovery attempted"], a: "Tower catch of the Super Heavy booster", d: "Orbit", c: "Starship" },
-  { q: "Elon Musk's initial offer to buy Twitter in April 2022 was valued at approximately how much?", o: ["$20 billion", "$44 billion", "$70 billion", "$100 billion"], a: "$44 billion", d: "Earthbound", c: "Twitter/X" },
+  { q: "How does SpaceX recover the Super Heavy booster instead of using landing legs?", o: ["Parachute recovery at sea", "Caught by arms on the launch tower", "Runway landing like a plane", "It is not recovered"], a: "Caught by arms on the launch tower", d: "Orbit", c: "Starship" },
+  { q: "What is the standard character limit for a post on X for non-subscribers?", o: ["140", "280", "500", "1,000"], a: "280", d: "Earthbound", c: "Twitter/X" },
   { q: "Which company did Tesla acquire in 2016 to expand into solar energy?", o: ["SolarCity", "SunPower", "First Solar", "Enphase"], a: "SolarCity", d: "Orbit", c: "Tesla" },
   { q: "What is the primary focus of Neuralink's Blindsight program?", o: ["Hearing restoration", "Vision restoration by stimulating the visual cortex", "Memory enhancement", "Mood regulation"], a: "Vision restoration by stimulating the visual cortex", d: "Martian", c: "Neuralink" },
   { q: "SpaceX's Starship is designed to be fully reusable. What does this primarily aim to achieve?", o: ["Higher launch costs", "Dramatically lower cost per kilogram to orbit", "Single-use only missions", "Exclusively military use"], a: "Dramatically lower cost per kilogram to orbit", d: "Earthbound", c: "Starship" },
   { q: "In which year did Tesla open its first Supercharger stations?", o: ["2010", "2012", "2015", "2018"], a: "2012", d: "Orbit", c: "Tesla" },
   { q: "What was the original name of the company before it was shortened to just Tesla?", o: ["Tesla Electric", "Tesla Motors", "Electric Cars Inc.", "Musk Motors"], a: "Tesla Motors", d: "Earthbound", c: "Tesla" },
-  { q: "Which of the following is NOT one of Elon Musk's primary companies today?", o: ["SpaceX", "Neuralink", "OpenAI", "The Boring Company"], a: "OpenAI", d: "Orbit", c: "Elon Personal" },
+  { q: "Which AI company did Elon Musk co-found in 2015 before later departing its board?", o: ["OpenAI", "DeepMind", "Anthropic", "xAI"], a: "OpenAI", d: "Orbit", c: "Elon Personal" },
   { q: "By mid-2026 reports, cumulative FSD (Supervised) miles driven exceeded approximately what level?", o: ["1 billion", "Several billion", "100 million", "500 million"], a: "Several billion", d: "Martian", c: "FSD" },
   { q: "What year did Cybertruck production and customer deliveries begin at Gigafactory Texas?", o: ["2021", "2022", "2023", "2024"], a: "2023", d: "Orbit", c: "Gigafactory" },
   { q: "Neuralink aims for high-volume production and more automated surgery starting in which year, per its late-2025 announcement?", o: ["2024", "2025", "2026", "2028"], a: "2026", d: "Martian", c: "Neuralink" },
@@ -134,19 +134,19 @@ const QUESTIONS = [
   { q: "The Cybercab was designed without which of the following?", o: ["A battery","A steering wheel and pedals","Doors","Wheels"], a: "A steering wheel and pedals", d: "Earthbound", c: "Tesla" },
   { q: "In which Texas city did Tesla first launch its Robotaxi ride-hailing service?", o: ["Dallas","Houston","Austin","San Antonio"], a: "Austin", d: "Earthbound", c: "Tesla" },
   { q: "What does FSD stand for?", o: ["Full Self-Driving","Fast Systems Design","Fleet Software Distribution","Final Safety Diagnostic"], a: "Full Self-Driving", d: "Earthbound", c: "FSD" },
-  { q: "What is the name of the brain implant device made by Neuralink?", o: ["The Link","The Node","The Bridge","The Core"], a: "The Link", d: "Earthbound", c: "Neuralink" },
+  { q: "Neuralink's first human patient used the implant primarily to control what?", o: ["A computer cursor", "A wheelchair", "A prosthetic leg", "A hearing aid"], a: "A computer cursor", d: "Earthbound", c: "Neuralink" },
   { q: "Which company owns and operates the Starlink satellite internet network?", o: ["Tesla","SpaceX","xAI","The Boring Company"], a: "SpaceX", d: "Earthbound", c: "SpaceX" },
   { q: "What is the name of Elon Musk's tunnel-construction company?", o: ["The Boring Company","Tunnel Corp","Digger Inc.","Underland"], a: "The Boring Company", d: "Earthbound", c: "Elon Personal" },
-  { q: "What is the name of the AI company Elon Musk founded in 2023?", o: ["xAI","OpenAI","DeepMusk","Grok Labs"], a: "xAI", d: "Earthbound", c: "Elon Personal" },
+  { q: "In which country was Elon Musk born?", o: ["South Africa", "Canada", "United States", "Australia"], a: "South Africa", d: "Earthbound", c: "Elon Personal" },
   { q: "What is the name of xAI's chatbot?", o: ["Grok","Ada","Nova","Echo"], a: "Grok", d: "Earthbound", c: "Elon Personal" },
   { q: "Which Tesla vehicle line ended production in 2026 after more than a decade on the market?", o: ["Model 3","Model Y","Model S and Model X","Cybertruck"], a: "Model S and Model X", d: "Earthbound", c: "Tesla" },
   { q: "Roughly how many unique parts does Tesla's Optimus robot have, according to Elon Musk?", o: ["About 1,000","About 10,000","About 100,000","About 500"], a: "About 10,000", d: "Orbit", c: "Elon Personal" },
   { q: "What long-term annual production capacity is Tesla designing its second Optimus line at Gigafactory Texas for?", o: ["100,000 robots","1 million robots","10 million robots","500,000 robots"], a: "10 million robots", d: "Orbit", c: "Gigafactory" },
   { q: "Which generation of Optimus is the first designed for mass production?", o: ["Gen 1","Gen 2","Gen 3","Gen 4"], a: "Gen 3", d: "Orbit", c: "Elon Personal" },
-  { q: "In addition to Austin, which two U.S. states saw early Tesla Robotaxi service expansion in 2026?", o: ["Florida and Nevada","Florida and Texas cities beyond Austin","New York and Illinois","Arizona and Georgia"], a: "Florida and Texas cities beyond Austin", d: "Orbit", c: "Tesla" },
+  { q: "Which Tesla model was the first built at Gigafactory Berlin-Brandenburg?", o: ["Model 3", "Model Y", "Model S", "Cybertruck"], a: "Model Y", d: "Orbit", c: "Tesla" },
   { q: "Which Florida city hosted Tesla's first Robotaxi service outside Texas and California?", o: ["Orlando","Tampa","Miami","Jacksonville"], a: "Miami", d: "Orbit", c: "Tesla" },
   { q: "What upcoming FSD architecture is planned to scale the driving model roughly tenfold in parameter count?", o: ["FSD v12","FSD v13","FSD v14","FSD v15"], a: "FSD v15", d: "Orbit", c: "FSD" },
-  { q: "Approximately how many electrodes can a single Neuralink N1 implant have?", o: ["Around 300","Around 1,000","Up to 3,072","Around 10,000"], a: "Up to 3,072", d: "Orbit", c: "Neuralink" },
+  { q: "How many electrodes does the Neuralink N1 implant used in human trials have?", o: ["256","1,024","3,072","10,000"], a: "1,024", d: "Orbit", c: "Neuralink" },
   { q: "What surgical innovation is Neuralink using to help scale up the number of implant procedures it can perform?", o: ["A remote-controlled scalpel","A dedicated surgical robot","Fully manual surgery only","3D-printed skull plates"], a: "A dedicated surgical robot", d: "Orbit", c: "Neuralink" },
   { q: "Starship's 13th flight test in July 2026 achieved a first for which product line?", o: ["Deployment of next-generation Starlink V3 satellites","First crewed flight","First Mars flyby","First flight without Super Heavy"], a: "Deployment of next-generation Starlink V3 satellites", d: "Orbit", c: "Starship" },
   { q: "What nickname did SpaceX employees give Starship's 13th flight test?", o: ["Lucky 13","The Big One","Ironclad","Final Countdown"], a: "Lucky 13", d: "Orbit", c: "Starship" },
@@ -154,12 +154,12 @@ const QUESTIONS = [
   { q: "What generation of Super Heavy-Starship vehicle flew for the first time on Flight 12 in May 2026?", o: ["V1","V2","V3","V4"], a: "V3", d: "Orbit", c: "Starship" },
   { q: "What major corporate event did SpaceX complete shortly before Starship's 13th flight test in 2026?", o: ["A merger with Tesla","An initial public offering (IPO)","A bankruptcy filing","A move to a new headquarters"], a: "An initial public offering (IPO)", d: "Orbit", c: "SpaceX" },
   { q: "What is the diameter of the Neuralink N1 implant, roughly comparable to the size of a coin?", o: ["About 10 mm","About 23 mm","About 50 mm","About 5 mm"], a: "About 23 mm", d: "Orbit", c: "Neuralink" },
-  { q: "Which Neuralink clinical trial focuses on decoding speech from thought for people with severe speech impairment?", o: ["PRIME","VOICE","Blindsight","CONVOY"], a: "VOICE", d: "Orbit", c: "Neuralink" },
-  { q: "Which Neuralink program targets restoring vision by stimulating the brain's visual cortex?", o: ["PRIME","VOICE","Blindsight","Optic"], a: "Blindsight", d: "Orbit", c: "Neuralink" },
+  { q: "What consumer-facing product name did Neuralink give its first brain-computer interface?", o: ["Telepathy", "Mindlink", "Synapse", "Cortex"], a: "Telepathy", d: "Orbit", c: "Neuralink" },
+  { q: "What is the name of the surgical robot Neuralink built to insert its implant threads?", o: ["R1", "N1", "V1", "Mechazilla"], a: "R1", d: "Orbit", c: "Neuralink" },
   { q: "Roughly how many total vehicles had the Tesla Model S and Model X produced combined by the end of their run?", o: ["Around 100,000","Around 300,000","Over 600,000","Over 2 million"], a: "Over 600,000", d: "Orbit", c: "Tesla" },
   { q: "What price point has Tesla targeted for the Cybercab to sell under?", o: ["$20,000","$25,000","$30,000","$40,000"], a: "$30,000", d: "Orbit", c: "Tesla" },
   { q: "Where did the first production Cybercab roll off the assembly line in early 2026?", o: ["Fremont","Gigafactory Texas","Gigafactory Nevada","Gigafactory Berlin"], a: "Gigafactory Texas", d: "Orbit", c: "Gigafactory" },
-  { q: "What was the approximate valuation of SpaceX and xAI combined following their 2026 merger, ahead of a planned IPO?", o: ["$250 billion","$500 billion","$1.25 trillion","$80 billion"], a: "$1.25 trillion", d: "Orbit", c: "Elon Personal" },
+  { q: "Elon Musk earned undergraduate degrees in physics and economics from which university?", o: ["Stanford", "University of Pennsylvania", "MIT", "Queen's University"], a: "University of Pennsylvania", d: "Orbit", c: "Elon Personal" },
   { q: "How many Raptor engines power the Super Heavy booster on a full Starship stack?", o: ["9","20","33","44"], a: "33", d: "Martian", c: "Starship" },
   { q: "What is the name of the launch tower system SpaceX uses to catch the Super Heavy booster during landing?", o: ["Mechazilla","Ironclad","Titan Arm","Catchframe"], a: "Mechazilla", d: "Martian", c: "Starship" },
   { q: "What key structural test did Starship's 12th flight perform on its rear flaps during reentry?", o: ["A cooling system test","An intentional stress test of structural limits","A repainting test","A camera calibration test"], a: "An intentional stress test of structural limits", d: "Martian", c: "Starship" },
@@ -171,12 +171,12 @@ const QUESTIONS = [
   { q: "In which four countries had Neuralink's PRIME Study enrolled patients as of 2026?", o: ["US, Canada, UK, UAE","US, Germany, Japan, Australia","US, Mexico, Brazil, UK","US, China, India, UAE"], a: "US, Canada, UK, UAE", d: "Martian", c: "Neuralink" },
   { q: "How many patients were enrolled in Neuralink's GB PRIME study in Great Britain as of May 2026?", o: ["Two","Seven","Fifteen","Twenty"], a: "Seven", d: "Martian", c: "Neuralink" },
   { q: "What size battery capacity was Tesla targeting for Phase 1 of a training-data energy system tied to Optimus development, expected online in April 2026?", o: ["50 MW","100 MW","250 MW","500 MW"], a: "250 MW", d: "Martian", c: "Elon Personal" },
-  { q: "How many net new Supercharger stalls did Tesla add in a recent reporting period, growing the network 17% year-over-year?", o: ["About 500","About 1,200","About 2,400","About 5,000"], a: "About 2,400", d: "Martian", c: "Tesla" },
+  { q: "Tesla's 4680 battery cell is named after its dimensions. What are they?", o: ["40mm x 68mm", "46mm x 80mm", "48mm x 60mm", "44mm x 68mm"], a: "46mm x 80mm", d: "Martian", c: "Tesla" },
   { q: "What cell type is Tesla increasing production of to support Cybercab and Tesla Semi ramps?", o: ["18650","2170","4680","21700-XL"], a: "4680", d: "Martian", c: "Gigafactory" },
-  { q: "What is the approximate total combined production figure for Model S and Model X across their entire production run?", o: ["Just under 300,000","Just over 610,000","Around 1 million","Around 2.5 million"], a: "Just over 610,000", d: "Martian", c: "Tesla" },
+  { q: "The tri-motor Tesla Model S Plaid produces approximately how much peak horsepower?", o: ["760 hp", "1,020 hp", "1,340 hp", "620 hp"], a: "1,020 hp", d: "Martian", c: "Tesla" },
   { q: "How many years was the Tesla Model S in production before the line ended in 2026?", o: ["8 years","11 years","14 years","18 years"], a: "14 years", d: "Martian", c: "Tesla" },
   { q: "How many years was the Tesla Model X in production before its line ended in 2026?", o: ["6 years","8 years","11 years","14 years"], a: "11 years", d: "Martian", c: "Tesla" },
-  { q: "What geofenced coverage area, in square miles, did Tesla's Robotaxi service in Miami initially launch with?", o: ["Roughly 1–3 sq mi","Roughly 10–14 sq mi","Roughly 50 sq mi","Roughly 100 sq mi"], a: "Roughly 10–14 sq mi", d: "Martian", c: "Tesla" },
+  { q: "Tesla's first Florida Robotaxi service launched with a geofenced area of roughly what size?", o: ["1–3 sq mi", "10–14 sq mi", "50 sq mi", "100 sq mi"], a: "10–14 sq mi", d: "Martian", c: "Tesla" },
   { q: "What communications technology did Tesla integrate into Cybercab robotaxi vehicles, benefiting SpaceX as well?", o: ["Starlink connectivity","5G-only modems","Ham radio","Bluetooth mesh networking"], a: "Starlink connectivity", d: "Martian", c: "Tesla" },
 ];
 
@@ -211,6 +211,223 @@ const buzz = (pattern) => {
   } catch (e) { /* unsupported or blocked — the visual pulse still carries it */ }
 };
 
+/* ============================================================
+   SOUND
+   Every sound here is built from oscillators and noise at the
+   moment it plays. Nothing is loaded, nothing is downloaded,
+   and the whole kit costs a couple of kilobytes of code instead
+   of a couple of megabytes of samples.
+
+   Two things browsers force on us:
+   - Audio cannot start until the player has touched the screen,
+     so unlock() is wired to the first tap anywhere.
+   - Everything must survive an audio system that refuses to
+     start at all, hence the try/catch around the whole module.
+   ============================================================ */
+const SFX = (() => {
+  let ctx = null;
+  let bus = null;      // everything runs through a compressor so the big
+  let enabled = true;  // liftoff roar can't clip against a stacked chord
+  let tune = 1;        // Moon runs bright; Mars sits lower and warmer
+  let noiseBuf = null;
+  let engineSrc = null;
+  let engineGain = null;
+
+  const live = () => {
+    if (!enabled || typeof window === "undefined") return false;
+    try {
+      if (!ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return false;
+        ctx = new AC();
+        const comp = ctx.createDynamicsCompressor();
+        comp.threshold.value = -14;
+        comp.ratio.value = 8;
+        bus = ctx.createGain();
+        bus.gain.value = 0.85;
+        bus.connect(comp);
+        comp.connect(ctx.destination);
+      }
+      if (ctx.state === "suspended") ctx.resume().catch(() => {});
+      return ctx.state === "running";
+    } catch (e) {
+      return false;
+    }
+  };
+
+  /* Brown-ish noise: white noise is thin and hissy, this leans low
+     and reads as thrust rather than static. */
+  const noise = () => {
+    if (!noiseBuf) {
+      const len = Math.floor(ctx.sampleRate * 2);
+      noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      let last = 0;
+      for (let i = 0; i < len; i++) {
+        last = (last + 0.023 * (Math.random() * 2 - 1)) / 1.023;
+        d[i] = Math.max(-1, Math.min(1, last * 3.6));
+      }
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuf;
+    src.loop = true;
+    return src;
+  };
+
+  /* exponentialRamp can never touch zero, so envelopes start and
+     end at a value low enough to be inaudible instead. */
+  const env = (g, t, peak, attack, dur) => {
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  };
+
+  const blip = (t, freq, peak, dur, type = "sine", glideTo) => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq * tune, t);
+    if (glideTo) o.frequency.exponentialRampToValueAtTime(glideTo * tune, t + dur);
+    env(g, t, peak, 0.006, dur);
+    o.connect(g);
+    g.connect(bus);
+    o.start(t);
+    o.stop(t + dur + 0.05);
+  };
+
+  const guard = (fn) => (...args) => {
+    if (!live()) return;
+    try { fn(ctx.currentTime, ...args); } catch (e) { /* never break the game over a sound */ }
+  };
+
+  return {
+    unlock() { live(); },
+    setEnabled(v) {
+      enabled = !!v;
+      if (!enabled) { try { this.engineOff(0.08); } catch (e) {} }
+    },
+    setTheme(id) { tune = id === "mars" ? 0.84 : 1; },
+
+    /* soft tap under every button */
+    ui: guard((t) => {
+      blip(t, 520, 0.05, 0.045, "triangle", 380);
+    }),
+
+    /* answer locked in and correct — a rising confirm with an
+       electric tail that matches the lightning on screen */
+    correct: guard((t) => {
+      [[523.25, 0], [783.99, 0.07], [1046.5, 0.14]].forEach(([f, d]) => blip(t + d, f, 0.14, 0.32));
+      const n = noise();
+      const bp = ctx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.Q.value = 1.8;
+      bp.frequency.setValueAtTime(1700 * tune, t);
+      bp.frequency.exponentialRampToValueAtTime(5400 * tune, t + 0.22);
+      const g = ctx.createGain();
+      env(g, t, 0.055, 0.005, 0.26);
+      n.connect(bp); bp.connect(g); g.connect(bus);
+      n.start(t); n.stop(t + 0.32);
+    }),
+
+    /* wrong answer — a short descending buzz, not a punishment siren */
+    wrong: guard((t, timedOut) => {
+      const o = ctx.createOscillator();
+      const lp = ctx.createBiquadFilter();
+      const g = ctx.createGain();
+      const dur = timedOut ? 0.62 : 0.42;
+      o.type = "sawtooth";
+      o.frequency.setValueAtTime(228 * tune, t);
+      o.frequency.exponentialRampToValueAtTime((timedOut ? 58 : 76) * tune, t + dur);
+      lp.type = "lowpass";
+      lp.frequency.setValueAtTime(920, t);
+      lp.frequency.exponentialRampToValueAtTime(210, t + dur);
+      env(g, t, 0.15, 0.012, dur);
+      o.connect(lp); lp.connect(g); g.connect(bus);
+      o.start(t); o.stop(t + dur + 0.05);
+    }),
+
+    /* final three seconds — climbs in pitch as the clock closes */
+    tick: guard((t, urgency = 0) => {
+      blip(t, 690 + urgency * 145, 0.085, 0.06, "square");
+    }),
+
+    /* the 3-2-1 numbers, dropping a step each time */
+    count: guard((t, n) => {
+      const base = 190 + n * 46;
+      blip(t, base, 0.3, 0.32, "sine", base * 0.52);
+      blip(t, base * 4, 0.06, 0.04, "square");
+    }),
+
+    /* engines spooling up under the countdown */
+    engineUp: guard((t, build = 2.6) => {
+      if (engineSrc) return;
+      const n = noise();
+      const lp = ctx.createBiquadFilter();
+      const g = ctx.createGain();
+      lp.type = "lowpass";
+      lp.frequency.setValueAtTime(110, t);
+      lp.frequency.linearRampToValueAtTime(430, t + build);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.2, t + build);
+      n.connect(lp); lp.connect(g); g.connect(bus);
+      n.start(t);
+      engineSrc = n;
+      engineGain = g;
+    }),
+
+    engineOff(fade = 0.35) {
+      if (!engineSrc || !ctx) return;
+      const src = engineSrc, g = engineGain;
+      engineSrc = null;
+      engineGain = null;
+      try {
+        const t = ctx.currentTime;
+        g.gain.cancelScheduledValues(t);
+        g.gain.setValueAtTime(Math.max(0.0002, g.gain.value), t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + fade);
+        src.stop(t + fade + 0.05);
+      } catch (e) { try { src.stop(); } catch (e2) {} }
+    },
+
+    /* the big one — full-stack roar with a sub-bass drop underneath */
+    liftoff: guard((t, big = true) => {
+      const dur = big ? 2.9 : 1.7;
+      const n = noise();
+      const lp = ctx.createBiquadFilter();
+      const g = ctx.createGain();
+      lp.type = "lowpass";
+      lp.frequency.setValueAtTime(190, t);
+      lp.frequency.exponentialRampToValueAtTime(1500, t + 0.45);
+      lp.frequency.exponentialRampToValueAtTime(280, t + dur);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(big ? 0.4 : 0.28, t + 0.16);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      n.connect(lp); lp.connect(g); g.connect(bus);
+      n.start(t); n.stop(t + dur + 0.1);
+      blip(t, 74, big ? 0.44 : 0.3, dur * 0.72, "sine", 27);
+    }),
+
+    /* altitude milestone / streak milestone */
+    promo: guard((t) => {
+      [[659.25, 0], [880, 0.09], [1318.5, 0.18]].forEach(([f, d]) => blip(t + d, f, 0.12, 0.36, "triangle"));
+    }),
+
+    /* rocket passing through something */
+    whoosh: guard((t) => {
+      const n = noise();
+      const bp = ctx.createBiquadFilter();
+      const g = ctx.createGain();
+      bp.type = "bandpass";
+      bp.Q.value = 1.1;
+      bp.frequency.setValueAtTime(320, t);
+      bp.frequency.exponentialRampToValueAtTime(2600, t + 0.3);
+      env(g, t, 0.16, 0.05, 0.38);
+      n.connect(bp); bp.connect(g); g.connect(bus);
+      n.start(t); n.stop(t + 0.45);
+    }),
+  };
+})();
+
 /* Local-date key. Deliberately not toISOString(), which is UTC — that would
    roll the "day" over at a different moment than todaySeed() above, so a
    player could see tomorrow's questions while still marked done for today. */
@@ -238,6 +455,48 @@ const bumpDayStreak = (s) => {
 };
 
 const ALTITUDES = [{ at: 0 }, { at: 0.33 }, { at: 0.66 }, { at: 1 }];
+
+/* ============================================================
+   ESCAPE VELOCITY
+   An endless run measured in real orbital physics. Every correct
+   answer adds velocity, the multiplier climbs with the streak,
+   and one wrong answer means gravity wins.
+
+   The thresholds aren't invented: 7.8 km/s is low Earth orbit,
+   11.2 is escape from Earth, 16.6 is escape from the Sun.
+   ============================================================ */
+const ESCAPE = {
+  gain: { Earthbound: 0.5, Orbit: 0.7, Martian: 0.95 },  // km/s before multipliers
+  multStep: 0.04,
+  timerStart: 15,
+  timerFloor: 7,
+  timerDrop: 0.4,   // seconds shaved off the clock each question
+  /* Every threshold is a real figure, which is what makes the
+     climb mean something. Roughly: orbit around Q9, escape around
+     Q12, and Earth's own orbital speed at about Q22 — a long way
+     out for anyone who gets there. */
+  marks: [
+    { at: 7.8, label: "LOW EARTH ORBIT" },
+    { at: 11.2, label: "ESCAPE VELOCITY", big: true },
+    { at: 16.6, label: "SOLAR ESCAPE" },
+    { at: 29.8, label: "EARTH'S ORBITAL SPEED" },
+  ],
+};
+
+/* The clock tightens as you climb — 15 seconds at the pad, 7 by
+   the time you're deep into Martian territory. */
+const escapeTimer = (i) => Math.max(ESCAPE.timerFloor, Math.round(ESCAPE.timerStart - i * ESCAPE.timerDrop));
+
+/* Questions get harder the higher you get: four Earthbound to
+   start, eight Orbit through the middle, Martian from there on.
+   Whatever's left over is appended so a freakishly long run can
+   never run the deck dry. */
+const buildEscapeDeck = () => {
+  const tier = (t) => shuffle(QUESTIONS.filter((q) => q.d === t));
+  const ladder = [...tier("Earthbound").slice(0, 4), ...tier("Orbit").slice(0, 8), ...tier("Martian")];
+  const used = new Set(ladder);
+  return [...ladder, ...shuffle(QUESTIONS.filter((q) => !used.has(q)))];
+};
 
 /* ============================================================
    PLANETS — rendered in code, no image files
@@ -399,7 +658,7 @@ function Btn({ children, onClick, variant = "primary", full, disabled, style: st
   };
   return (
     <button
-      onClick={disabled ? undefined : onClick}
+      onClick={disabled ? undefined : (e) => { SFX.ui(); onClick && onClick(e); }}
       disabled={disabled}
       className={`px-5 py-3 text-sm active:scale-95 ${full ? "w-full" : ""}`}
       style={{ ...base, ...variants[variant], ...st }}
@@ -724,7 +983,7 @@ function PlanetPicker({ onPick }) {
             return (
               <button
                 key={t.id}
-                onClick={() => onPick(t.id)}
+                onClick={() => { SFX.unlock(); SFX.setTheme(t.id); SFX.whoosh(); onPick(t.id); }}
                 onMouseEnter={() => setHover(t.id)}
                 onMouseLeave={() => setHover(null)}
                 className="relative flex-1 flex flex-col items-center justify-center gap-5 py-10 px-6 active:scale-95"
@@ -839,14 +1098,80 @@ const CARD_SHARDS = [
   { clip: "polygon(51% 70%, 68% 62%, 84% 70%, 100% 66%, 100% 100%, 49% 100%)", x: "14px", y: "11px", r: "-2.5deg" },
 ];
 
-function Home({ onDaily, onCustom, stats, dailyDone, onSwapTheme, themeName, profile, dayStreak, onOpenProfile, streakMilestone, onDismissMilestone }) {
+/* ============================================================
+   ADD TO HOME SCREEN
+   iOS never prompts on its own — the player has to be told the
+   Share sheet exists. Android fires a real install event we can
+   trigger from a button, so both paths are handled here.
+   ============================================================ */
+const isInstalled = () => {
+  if (typeof window === "undefined") return false;
+  return window.navigator.standalone === true ||
+    (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+};
+
+/* Only Safari on iOS can add to the home screen. Chrome and
+   Firefox on iOS can't, so showing them the instructions would
+   just be wrong. iPads report themselves as Macs now, hence the
+   touch-point check. */
+const isIOSSafari = () => {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  const ios = /iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
+  const otherBrowser = /crios|fxios|edgios|opios|opr\//i.test(ua);
+  return ios && !otherBrowser;
+};
+
+function InstallHint({ onDismiss, androidPrompt }) {
+  const C = useC();
+  return (
+    <Panel className="p-4 mb-3" style={{ borderColor: `${C.ion}44`, background: `${C.ion}0A` }}>
+      <div className="flex items-start gap-3">
+        <div
+          className="flex items-center justify-center rounded-lg flex-shrink-0"
+          style={{ width: 34, height: 34, background: `${C.ion}18`, border: `1px solid ${C.ion}44` }}
+        >
+          <Rocket size={16} style={{ color: C.ion, transform: "rotate(-45deg)" }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 15, color: C.star }}>
+            Keep it on your home screen
+          </div>
+          <div className="text-sm mt-1" style={{ color: C.dim, lineHeight: 1.5 }}>
+            {androidPrompt ? (
+              "Install it and it opens fullscreen, like any other app."
+            ) : (
+              <>
+                Tap <Share size={13} style={{ display: "inline", verticalAlign: "-2px", color: C.ion }} /> below,
+                then <span style={{ color: C.star }}>Add to Home Screen</span>. It opens fullscreen and your streak
+                stops expiring.
+              </>
+            )}
+          </div>
+          <div className="flex gap-2 mt-3">
+            {androidPrompt && (
+              <Btn onClick={androidPrompt} style={{ padding: "8px 14px", fontSize: 13 }}>Install</Btn>
+            )}
+            <Btn variant="ghost" onClick={onDismiss} style={{ padding: "8px 14px", fontSize: 13 }}>
+              {androidPrompt ? "Not now" : "Got it"}
+            </Btn>
+          </div>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function Home({ onDaily, onCustom, onEscape, escapeBest = 0, stats, dailyDone, onSwapTheme, themeName, profile, dayStreak, onOpenProfile, streakMilestone, onDismissMilestone, soundOn, onToggleSound, showInstall, onDismissInstall, androidPrompt }) {
   const C = useC();
   const named = (profile.name || "").trim();
   const [rocketPhase, setRocketPhase] = useState("idle");
   const tapRocket = () => {
     if (rocketPhase !== "idle") return;
     buzz([15, 40, 15, 40, 60]);
+    SFX.liftoff(false);
     setRocketPhase("flying");
+    setTimeout(() => SFX.whoosh(), 1700);
     setTimeout(() => setRocketPhase("returning"), 1700);
     setTimeout(() => setRocketPhase("idle"), 2350);
   };
@@ -858,16 +1183,34 @@ function Home({ onDaily, onCustom, stats, dailyDone, onSwapTheme, themeName, pro
       <div className="relative z-10 flex flex-col flex-1 max-w-md w-full mx-auto">
         <div className="pt-4 pb-4 flex items-center justify-between">
           <Logo size={32} />
-          <button
-            onClick={onSwapTheme}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl active:scale-90"
-            style={{ background: C.hullLight, border: `1px solid ${C.edge}`, transition: "transform .12s" }}
-          >
-            <Repeat size={13} style={{ color: C.ion }} />
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: C.dim, letterSpacing: "0.14em" }}>
-              {themeName.toUpperCase()}
-            </span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onToggleSound}
+              aria-label={soundOn ? "Turn sound off" : "Turn sound on"}
+              className="flex items-center justify-center rounded-xl active:scale-90"
+              style={{
+                width: 36,
+                height: 34,
+                background: C.hullLight,
+                border: `1px solid ${soundOn ? `${C.ion}55` : C.edge}`,
+                transition: "transform .12s, border-color .2s",
+              }}
+            >
+              {soundOn
+                ? <Volume2 size={14} style={{ color: C.ion }} />
+                : <VolumeX size={14} style={{ color: C.dim }} />}
+            </button>
+            <button
+              onClick={onSwapTheme}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl active:scale-90"
+              style={{ background: C.hullLight, border: `1px solid ${C.edge}`, transition: "transform .12s" }}
+            >
+              <Repeat size={13} style={{ color: C.ion }} />
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: C.dim, letterSpacing: "0.14em" }}>
+                {themeName.toUpperCase()}
+              </span>
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 pb-6">
@@ -953,6 +1296,32 @@ function Home({ onDaily, onCustom, stats, dailyDone, onSwapTheme, themeName, pro
                       </div>
                       <div className="text-sm mt-1" style={{ color: C.dim }}>
                         Everyone in the car takes a turn. You set the rules.
+                      </div>
+                    </div>
+                    <ChevronRight size={20} style={{ color: C.dim, marginTop: 20 }} />
+                  </div>
+                </Panel>
+              ),
+            },
+            {
+              key: "escape",
+              onTap: onEscape,
+              hit: 0.58,
+              card: (
+                <Panel className="p-5" style={{ borderColor: `${C.abort}44` }}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Flame size={16} style={{ color: C.abort }} />
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.abort, letterSpacing: "0.18em" }}>
+                          {escapeBest > 0 ? `BEST ${escapeBest.toFixed(1)} KM/S` : "ONE MISS ENDS IT"}
+                        </span>
+                      </div>
+                      <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, color: C.star }}>
+                        Escape Velocity
+                      </div>
+                      <div className="text-sm mt-1" style={{ color: C.dim }}>
+                        Keep answering, keep accelerating. Reach 11.2 km/s to break free.
                       </div>
                     </div>
                     <ChevronRight size={20} style={{ color: C.dim, marginTop: 20 }} />
@@ -1063,6 +1432,7 @@ function Home({ onDaily, onCustom, stats, dailyDone, onSwapTheme, themeName, pro
         </div>
 
         <div className="mt-auto pt-8">
+          {showInstall && <InstallHint onDismiss={onDismissInstall} androidPrompt={androidPrompt} />}
           <Panel className="p-4">
             <div className="flex items-center justify-around">
               <Stat icon={<Trophy size={14} />} label="BEST" value={stats.best} color={C.ion} />
@@ -1446,8 +1816,24 @@ function CountdownLaunch({ onDone }) {
 
   const lifting = n === 0;
 
+  /* Engines spool up for the whole countdown, then hand off to the
+     roar. Stopped on unmount too, so skipping past never leaves it
+     humming under the first question. */
   useEffect(() => {
-    if (lifting) buzz([15, 40, 15, 40, 60]);
+    SFX.engineUp(2.6);
+    return () => SFX.engineOff(0.2);
+  }, []);
+
+  useEffect(() => {
+    if (n > 0) SFX.count(n);
+  }, [n]);
+
+  useEffect(() => {
+    if (lifting) {
+      buzz([15, 40, 15, 40, 60]);
+      SFX.engineOff(0.15);
+      SFX.liftoff(true);
+    }
   }, [lifting]);
 
   return (
@@ -1556,15 +1942,33 @@ function Game({ config, mode, onFinish, onQuit }) {
   const [gainInfo, setGainInfo] = useState(null);
   const [pulse, setPulse] = useState(null);
 
+  /* Escape Velocity run state. Unused in the other two modes. */
+  const isEscape = mode === "escape";
+  const [velocity, setVelocity] = useState(0);
+  const [mult, setMult] = useState(1);
+  const [kmGain, setKmGain] = useState(null);
+  const [escapeBig, setEscapeBig] = useState(null);
+  const [dead, setDead] = useState(false);
+  const escapeMarkRef = useRef(0);
+
+  /* The clock is fixed in Daily and Road Trip, but tightens every
+     question in an Escape run. */
+  const liveTimer = isEscape ? escapeTimer(qIndex) : timer;
+
   const milestoneRef = useRef(null);
   if (milestoneRef.current === null) milestoneRef.current = players.map(() => 0);
 
   const wasWrongRef = useRef(null);
   if (wasWrongRef.current === null) wasWrongRef.current = players.map(() => false);
 
+  const tickedRef = useRef(null);
+
   const deckRef = useRef(null);
   if (deckRef.current === null) {
-    if (sameQ || players.length === 1) {
+    if (isEscape) {
+      /* Already laddered by difficulty — shuffling here would undo it. */
+      deckRef.current = [config.pool.slice(0, totalRounds)];
+    } else if (sameQ || players.length === 1) {
       const shared = shuffle(config.pool, mode === "daily" ? todaySeed() : undefined).slice(0, totalRounds);
       deckRef.current = players.map(() => shared);
     } else {
@@ -1590,26 +1994,55 @@ function Game({ config, mode, onFinish, onQuit }) {
         setZap(true);
         setTimeout(() => setZap(false), 750);
         buzz(30);
+        SFX.correct();
       } else {
         setShake(true);
         setTimeout(() => setShake(false), 420);
         buzz(timedOut ? 90 : [25, 60, 25]);
+        SFX.wrong(timedOut);
       }
       setPulse(isRight ? "good" : "bad");
       setTimeout(() => setPulse(null), 260);
-      const speedBonus = isRight ? Math.round(TIER_META[question.d].points * 0.5 * (timeLeft / timer)) : 0;
+      const speedBonus = isRight ? Math.round(TIER_META[question.d].points * 0.5 * (timeLeft / liveTimer)) : 0;
       const gain = isRight ? TIER_META[question.d].points + speedBonus : 0;
       const comeback = isRight && wasWrongRef.current[pIndex];
       wasWrongRef.current[pIndex] = !isRight;
       setGainInfo(isRight ? { base: TIER_META[question.d].points, bonus: speedBonus, comeback } : null);
 
-      if (isRight) {
+      if (isEscape) {
+        if (isRight) {
+          /* Answering fast is worth up to half as much again. */
+          const speed = 1 + 0.5 * (timeLeft / liveTimer);
+          const add = ESCAPE.gain[question.d] * mult * speed;
+          const nv = velocity + add;
+          setVelocity(nv);
+          setMult((m) => Math.round((m + ESCAPE.multStep) * 100) / 100);
+          setKmGain({ km: add, mult, speed: Math.round((speed - 1) * 100) });
+          for (const mk of ESCAPE.marks) {
+            if (nv >= mk.at && escapeMarkRef.current < mk.at) {
+              escapeMarkRef.current = mk.at;
+              if (mk.big) {
+                setEscapeBig(mk.label);   // breaking free earns the full launch
+              } else {
+                SFX.promo();
+                setPromo(mk.label);
+                setTimeout(() => setPromo(null), 1700);
+              }
+            }
+          }
+        } else {
+          setDead(true);   // one wrong answer ends the run
+        }
+      }
+
+      if (isRight && !isEscape) {
         const maxS = totalRounds * 300 * 1.5;
         const np = Math.min(1, (scores[pIndex] + gain) / (maxS * 0.6));
         const marks = [[0.33, "ORBIT REACHED"], [0.66, "MARTIAN REACHED"], [1, "ESCAPE VELOCITY"]];
         for (const [at, label] of marks) {
           if (np >= at && milestoneRef.current[pIndex] < at) {
             milestoneRef.current[pIndex] = at;
+            SFX.promo();
             setPromo(label);
             setTimeout(() => setPromo(null), 1700);
           }
@@ -1625,7 +2058,7 @@ function Game({ config, mode, onFinish, onQuit }) {
       });
       setPhase("revealed");
     },
-    [picked, question, timeLeft, timer, pIndex]
+    [picked, question, timeLeft, liveTimer, pIndex, isEscape, mult, velocity]
   );
 
   useEffect(() => {
@@ -1634,11 +2067,43 @@ function Game({ config, mode, onFinish, onQuit }) {
       lockIn(null);
       return;
     }
+    /* One tick per second in the last three. The ref stops a pause
+       or a re-render from firing the same second twice. */
+    if (timeLeft <= 3 && tickedRef.current !== timeLeft) {
+      tickedRef.current = timeLeft;
+      SFX.tick(3 - timeLeft);
+    }
     const t = setTimeout(() => setTimeLeft((v) => v - 1), 1000);
     return () => clearTimeout(t);
   }, [phase, timeLeft, paused, lockIn]);
 
   const advance = () => {
+    if (isEscape) {
+      if (dead || qIndex === totalRounds - 1) {
+        onFinish({
+          players,
+          scores,
+          correctCounts,
+          bestStreaks,
+          totalRounds: qIndex + 1,
+          escape: true,
+          velocity,
+          cleared: correctCounts[0],
+          peakMult: mult,
+          escaped: velocity >= 11.2,
+        });
+        return;
+      }
+      setPicked(null);
+      setGainInfo(null);
+      setKmGain(null);
+      setTimeLeft(escapeTimer(qIndex + 1));
+      tickedRef.current = null;
+      setQIndex((v) => v + 1);
+      setPhase("asking");
+      return;
+    }
+
     const lastPlayer = pIndex === players.length - 1;
     const lastQuestion = qIndex === totalRounds - 1;
     if (lastPlayer && lastQuestion) {
@@ -1648,6 +2113,7 @@ function Game({ config, mode, onFinish, onQuit }) {
     setPicked(null);
     setGainInfo(null);
     setTimeLeft(timer);
+    tickedRef.current = null;
     if (lastPlayer) {
       setPIndex(0);
       setQIndex((v) => v + 1);
@@ -1661,7 +2127,8 @@ function Game({ config, mode, onFinish, onQuit }) {
     return (
       <CountdownLaunch
         onDone={() => {
-          setTimeLeft(timer);
+          setTimeLeft(isEscape ? escapeTimer(0) : timer);
+          tickedRef.current = null;
           setPhase(players.length > 1 ? "handoff" : "asking");
         }}
       />
@@ -1675,7 +2142,8 @@ function Game({ config, mode, onFinish, onQuit }) {
         roundNum={qIndex + 1}
         totalRounds={totalRounds}
         onReady={() => {
-          setTimeLeft(timer);
+          setTimeLeft(isEscape ? escapeTimer(0) : timer);
+          tickedRef.current = null;
           setPhase("asking");
         }}
       />
@@ -1687,11 +2155,20 @@ function Game({ config, mode, onFinish, onQuit }) {
   const timedOut = picked === "__timeout__";
   const gotIt = picked === question.a;
   const maxScore = totalRounds * 300 * 1.5;
-  const progress = Math.min(1, scores[pIndex] / (maxScore * 0.6));
+  const progress = isEscape
+    ? Math.min(1, velocity / 11.2)
+    : Math.min(1, scores[pIndex] / (maxScore * 0.6));
 
   return (
     <div className="relative min-h-screen flex flex-col" style={{ background: C.void }}>
       <Starfield comets={false} />
+      {escapeBig && (
+        <LaunchCelebration
+          kicker="11.2 KM/S — YOU'RE FREE"
+          title="ESCAPE VELOCITY"
+          onDone={() => setEscapeBig(null)}
+        />
+      )}
       <div
         className="relative z-10 flex-1 flex flex-col max-w-md w-full mx-auto p-5"
         style={{ animation: shake ? "screenshake .4s ease-out" : "none" }}
@@ -1710,7 +2187,7 @@ function Game({ config, mode, onFinish, onQuit }) {
           <div className="absolute inset-x-0 z-30 text-center pointer-events-none" style={{ top: "36%" }}>
             <div style={{ animation: "promoPop 1.7s ease-out both" }}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.ion, letterSpacing: "0.3em" }}>
-                ALTITUDE MILESTONE
+                {isEscape ? "VELOCITY MILESTONE" : "ALTITUDE MILESTONE"}
               </div>
               <div
                 style={{
@@ -1732,16 +2209,31 @@ function Game({ config, mode, onFinish, onQuit }) {
             <X size={20} style={{ color: C.dim }} />
           </button>
           <div className="text-center">
-            <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 600, fontSize: 15, color: C.star }}>{players[pIndex]}</div>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: C.dim, letterSpacing: "0.16em" }}>
-              {qIndex + 1} / {totalRounds}
-              {streaks[pIndex] >= 2 && (
-                <span style={{ color: streaks[pIndex] >= 6 ? C.abort : C.plasma }}>
-                  {" · "}{streaks[pIndex]}
-                  {"🔥".repeat(Math.min(3, Math.floor(streaks[pIndex] / 2)))}
-                </span>
-              )}
-            </div>
+            {isEscape ? (
+              <>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 19, color: velocity >= 11.2 ? C.thrust : C.star, textShadow: velocity >= 11.2 ? `0 0 16px ${C.thrust}` : "none", lineHeight: 1.1 }}>
+                  {velocity.toFixed(1)}
+                  <span style={{ fontSize: 10, color: C.dim, marginLeft: 3, letterSpacing: "0.1em" }}>KM/S</span>
+                </div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: C.dim, letterSpacing: "0.14em", marginTop: 2 }}>
+                  <span style={{ color: mult >= 2 ? C.plasma : C.dim }}>×{mult.toFixed(2)}</span>
+                  {" · "}{correctCounts[0]} CLEARED
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 600, fontSize: 15, color: C.star }}>{players[pIndex]}</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: C.dim, letterSpacing: "0.16em" }}>
+                  {qIndex + 1} / {totalRounds}
+                  {streaks[pIndex] >= 2 && (
+                    <span style={{ color: streaks[pIndex] >= 6 ? C.abort : C.plasma }}>
+                      {" · "}{streaks[pIndex]}
+                      {"🔥".repeat(Math.min(3, Math.floor(streaks[pIndex] / 2)))}
+                    </span>
+                  )}
+                </div>
+              </>
+            )}
           </div>
           <button onClick={() => setPaused((p) => !p)} className="p-2 -mr-2 active:scale-90" disabled={answered}>
             <Pause size={20} style={{ color: answered ? C.edge : paused ? C.ion : C.dim }} />
@@ -1752,8 +2244,8 @@ function Game({ config, mode, onFinish, onQuit }) {
           <div
             className="h-full rounded-full"
             style={{
-              width: `${(timeLeft / timer) * 100}%`,
-              background: timeLeft / timer > 0.4 ? `linear-gradient(90deg, ${C.ion}, ${C.plasma})` : C.abort,
+              width: `${(timeLeft / liveTimer) * 100}%`,
+              background: timeLeft / liveTimer > 0.4 ? `linear-gradient(90deg, ${C.ion}, ${C.plasma})` : C.abort,
               transition: "width 1s linear, background .3s",
               animation: !answered && timeLeft <= 3 ? "urgent .6s ease-in-out infinite" : "none",
             }}
@@ -1870,9 +2362,54 @@ function Game({ config, mode, onFinish, onQuit }) {
                       textShadow: gotIt && gainInfo?.comeback ? `0 0 18px ${C.plasma}` : "none",
                     }}
                   >
-                    {gotIt ? (gainInfo?.comeback ? "Back in it" : "Nailed it") : timedOut ? "Out of time" : "Not quite"}
+                    {gotIt
+                      ? isEscape
+                        ? "Still climbing"
+                        : gainInfo?.comeback
+                        ? "Back in it"
+                        : "Nailed it"
+                      : isEscape
+                      ? "Gravity wins"
+                      : timedOut
+                      ? "Out of time"
+                      : "Not quite"}
                   </div>
-                  {gotIt && gainInfo && (
+                  {isEscape && gotIt && kmGain && (
+                    <>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: C.star, marginTop: 4 }}>
+                        +{kmGain.km.toFixed(2)} km/s
+                        <span style={{ color: C.dim }}>{"  ×"}{kmGain.mult.toFixed(2)}</span>
+                      </div>
+                      {kmGain.speed > 0 && (
+                        <div
+                          className="absolute inset-x-0 pointer-events-none"
+                          style={{ top: 6, animation: "speedFloat 1.5s cubic-bezier(.2,.8,.2,1) both" }}
+                        >
+                          <span
+                            className="px-2 py-1 rounded-md"
+                            style={{
+                              fontFamily: "'JetBrains Mono', monospace",
+                              fontSize: 11,
+                              fontWeight: 700,
+                              letterSpacing: "0.08em",
+                              color: C.ion,
+                              background: `${C.ion}1A`,
+                              border: `1px solid ${C.ion}66`,
+                              textShadow: `0 0 12px ${C.ion}`,
+                            }}
+                          >
+                            +{kmGain.speed}% SPEED
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {isEscape && !gotIt && (
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: C.dim, marginTop: 4 }}>
+                      {timedOut ? "The clock ran out." : "Correct answer above."}
+                    </div>
+                  )}
+                  {gotIt && !isEscape && gainInfo && (
                     <>
                       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: C.star, marginTop: 4 }}>
                         +{gainInfo.base + gainInfo.bonus} pts
@@ -1903,7 +2440,11 @@ function Game({ config, mode, onFinish, onQuit }) {
                   )}
                 </div>
                 <Btn full onClick={advance} style={{ padding: "15px", fontSize: 15 }}>
-                  {pIndex === players.length - 1 && qIndex === totalRounds - 1
+                  {isEscape
+                    ? dead
+                      ? "See how far you got"
+                      : "Keep climbing"
+                    : pIndex === players.length - 1 && qIndex === totalRounds - 1
                     ? "See results"
                     : players.length > 1
                     ? "Next player"
@@ -1940,6 +2481,14 @@ function LaunchCelebration({ onDone, small = false, kicker = "FLAWLESS RUN", tit
     const t = setTimeout(onDone, small ? 2600 : 3400);
     return () => clearTimeout(t);
   }, [onDone, small]);
+
+  /* The pad shudder runs for about a second before the vehicle
+     actually moves, so the roar waits for it rather than firing
+     the instant the screen appears. */
+  useEffect(() => {
+    const t = setTimeout(() => SFX.liftoff(!small), small ? 500 : 750);
+    return () => clearTimeout(t);
+  }, [small]);
 
   const smoke = small ? [0, 1, 2, 3, 4] : [0, 1, 2, 3, 4, 5, 6, 7];
   const streaks = [12, 26, 41, 57, 72, 88];
@@ -2031,6 +2580,134 @@ function LaunchCelebration({ onDone, small = false, kicker = "FLAWLESS RUN", tit
           }}
         >
           {title}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EscapeResults({ data, profile = {}, prevBest, onHome, onAgain }) {
+  const C = useC();
+  const { velocity, cleared, peakMult, escaped } = data;
+  const [celebrating, setCelebrating] = useState(escaped);
+  const newBest = (prevBest || 0) > 0 && velocity > prevBest;
+
+  /* Where you ended up, in plain terms. */
+  const verdict = velocity >= 29.8
+    ? { label: "OUTRAN THE PLANET", note: "Faster than Earth's own trip around the Sun.", color: C.plasma }
+    : velocity >= 16.6
+    ? { label: "SOLAR ESCAPE", note: "Fast enough to leave the Sun's grip entirely.", color: C.plasma }
+    : escaped
+    ? { label: "BROKE FREE", note: "Past 11.2 km/s — Earth couldn't hold you.", color: C.thrust }
+    : velocity >= 7.8
+    ? { label: "IN ORBIT", note: "Fast enough to circle, not enough to leave.", color: C.ion }
+    : { label: "FELL BACK", note: "Gravity got you before orbit.", color: C.abort };
+
+  const share = () => {
+    const ride = profile.model && profile.model !== "Not yet" ? ` ${profile.model} owner here.` : "";
+    const text = escaped
+      ? `Hit ${velocity.toFixed(1)} km/s on Orbit Trivia's Escape Velocity run and broke free of Earth — ${cleared} questions deep before gravity won.${ride} Escape velocity is 11.2 km/s. Beat it. 🚀`
+      : `Got to ${velocity.toFixed(1)} km/s on Orbit Trivia's Escape Velocity run — ${cleared} questions deep. Need 11.2 km/s to break free of Earth.${ride} 🚀`;
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank");
+  };
+
+  return (
+    <div className="relative min-h-screen p-6" style={{ background: C.void }}>
+      <Starfield />
+      {celebrating && (
+        <LaunchCelebration kicker="ESCAPE VELOCITY" title={`${velocity.toFixed(1)} KM/S`} onDone={() => setCelebrating(false)} />
+      )}
+      <div className="relative z-10 max-w-md mx-auto">
+        <div className="text-center pt-10 pb-8">
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.dim, letterSpacing: "0.22em" }}>
+            FINAL VELOCITY
+          </div>
+          <h1
+            className="mt-1"
+            style={{
+              fontFamily: "'Chakra Petch', sans-serif",
+              fontWeight: 700,
+              fontSize: 56,
+              lineHeight: 1.05,
+              color: C.star,
+              textShadow: `0 0 40px ${verdict.color}`,
+            }}
+          >
+            {velocity.toFixed(1)}
+            <span style={{ fontSize: 20, color: C.dim, marginLeft: 6 }}>km/s</span>
+          </h1>
+          <div
+            className="inline-block mt-3 px-3 py-1.5 rounded-full"
+            style={{
+              background: `${verdict.color}14`,
+              border: `1px solid ${verdict.color}66`,
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: "0.18em",
+              color: verdict.color,
+            }}
+          >
+            {verdict.label}
+          </div>
+          <p className="text-sm mt-3" style={{ color: C.dim }}>{verdict.note}</p>
+          {newBest && (
+            <div
+              className="inline-flex items-center gap-1.5 mt-4 px-3 py-1.5 rounded-full"
+              style={{
+                background: `${C.thrust}14`,
+                border: `1px solid ${C.thrust}66`,
+                boxShadow: `0 0 24px ${C.thrust}33`,
+                animation: "verdictIn .6s cubic-bezier(.2,.8,.2,1) .4s both",
+              }}
+            >
+              <Trophy size={13} style={{ color: C.thrust }} />
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, color: C.thrust, letterSpacing: "0.16em" }}>
+                NEW PERSONAL BEST
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* how far along the climb you got */}
+        <Panel className="p-4 mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: C.dim, letterSpacing: "0.16em" }}>
+              PAD
+            </span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: escaped ? C.thrust : C.dim, letterSpacing: "0.16em" }}>
+              11.2 — ESCAPE
+            </span>
+          </div>
+          <div className="rounded-full overflow-hidden" style={{ height: 6, background: C.edge }}>
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${Math.min(100, (velocity / 11.2) * 100)}%`,
+                background: escaped ? C.thrust : `linear-gradient(90deg, ${C.ion}, ${C.plasma})`,
+                boxShadow: escaped ? `0 0 16px ${C.thrust}` : "none",
+                transition: "width 1s cubic-bezier(.2,.8,.2,1)",
+              }}
+            />
+          </div>
+        </Panel>
+
+        <Panel className="p-4 mb-6">
+          <div className="flex items-center justify-around">
+            <Stat icon={<Check size={14} />} label="CLEARED" value={cleared} color={C.thrust} />
+            <div style={{ width: 1, height: 32, background: C.edge }} />
+            <Stat icon={<Flame size={14} />} label="PEAK MULT" value={`×${peakMult.toFixed(2)}`} color={C.plasma} />
+            <div style={{ width: 1, height: 32, background: C.edge }} />
+            <Stat icon={<Trophy size={14} />} label="BEST" value={Math.max(prevBest || 0, velocity).toFixed(1)} color={C.ion} />
+          </div>
+        </Panel>
+
+        <div className="flex flex-col gap-2 pb-8">
+          <Btn full onClick={share} style={{ padding: "15px", fontSize: 15 }}>
+            <span className="flex items-center justify-center gap-2"><Share2 size={17} /> Share to X</span>
+          </Btn>
+          <Btn full variant="solid" onClick={onAgain}>Launch again</Btn>
+          <Btn full variant="ghost" onClick={onHome}>Back to launchpad</Btn>
         </div>
       </div>
     </div>
@@ -2173,9 +2850,68 @@ export default function OrbitTrivia() {
   const [profile, setProfile] = useState({ name: "", handle: "", model: "" });
   const [dayStreakData, setDayStreakData] = useState({ lastDate: null, current: 0, best: 0 });
   const [streakMilestone, setStreakMilestone] = useState(null);
+  const [soundOn, setSoundOn] = useState(true);
+  const [escapeBest, setEscapeBest] = useState(0);
+  const [installDismissed, setInstallDismissed] = useState(false);
+  const [androidEvt, setAndroidEvt] = useState(null);
+
+  /* Android and desktop Chrome fire this when the site qualifies as
+     installable. Holding onto it lets a real Install button work. */
+  useEffect(() => {
+    const grab = (e) => { e.preventDefault(); setAndroidEvt(e); };
+    window.addEventListener("beforeinstallprompt", grab);
+    const done = () => setAndroidEvt(null);
+    window.addEventListener("appinstalled", done);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", grab);
+      window.removeEventListener("appinstalled", done);
+    };
+  }, []);
+
+  /* The hint waits until someone has finished a run. Asking a
+     first-time visitor to install something they haven't played
+     yet is how you get it dismissed forever. */
+  const showInstall =
+    !installDismissed && !isInstalled() && stats.runs >= 1 && (androidEvt !== null || isIOSSafari());
+
+  const dismissInstall = async () => {
+    setInstallDismissed(true);
+    try { await window.storage.set("orbit:installhint", "off"); } catch (e) { /* session only */ }
+  };
+
+  const runAndroidInstall = androidEvt
+    ? async () => {
+        try {
+          androidEvt.prompt();
+          await androidEvt.userChoice;
+        } catch (e) { /* dismissed */ }
+        setAndroidEvt(null);
+        dismissInstall();
+      }
+    : null;
+
+  /* Browsers refuse to start audio until the player has touched the
+     screen at least once. This listens for that first touch anywhere
+     and opens the audio system inside it, so nothing is swallowed. */
+  useEffect(() => {
+    const open = () => SFX.unlock();
+    window.addEventListener("pointerdown", open);
+    window.addEventListener("touchstart", open);
+    return () => {
+      window.removeEventListener("pointerdown", open);
+      window.removeEventListener("touchstart", open);
+    };
+  }, []);
+
+  useEffect(() => { SFX.setEnabled(soundOn); }, [soundOn]);
+  useEffect(() => { if (themeId) SFX.setTheme(themeId); }, [themeId]);
 
   useEffect(() => {
     (async () => {
+      try {
+        const s = await window.storage.get("orbit:sound");
+        if (s?.value === "off") setSoundOn(false);
+      } catch (e) { /* default is on */ }
       try {
         const t = await window.storage.get("orbit:theme");
         if (t?.value && THEMES[t.value]) setThemeId(t.value);
@@ -2200,13 +2936,30 @@ export default function OrbitTrivia() {
         const m = await window.storage.get("orbit:milestone");
         if (m?.value) setStreakMilestone(parseInt(m.value, 10));
       } catch (e) { /* no pending milestone */ }
+      try {
+        const ev = await window.storage.get("orbit:escape");
+        if (ev?.value) setEscapeBest(parseFloat(ev.value) || 0);
+      } catch (e) { /* no escape run yet */ }
+      try {
+        const ih = await window.storage.get("orbit:installhint");
+        if (ih?.value === "off") setInstallDismissed(true);
+      } catch (e) { /* never dismissed */ }
       setBooted(true);
     })();
   }, []);
 
   const pickTheme = async (id) => {
     setThemeId(id);
+    SFX.setTheme(id);
     try { await window.storage.set("orbit:theme", id); } catch (e) { /* not fatal */ }
+  };
+
+  const toggleSound = async () => {
+    const next = !soundOn;
+    setSoundOn(next);
+    SFX.setEnabled(next);
+    if (next) SFX.ui();  // confirm it came back on
+    try { await window.storage.set("orbit:sound", next ? "on" : "off"); } catch (e) { /* session only */ }
   };
 
   const dismissMilestone = async () => {
@@ -2226,9 +2979,16 @@ export default function OrbitTrivia() {
   };
 
   const afterDrivingCheck = () => {
+    const who = (profile.name || "").trim() || "You";
     if (pendingMode === "daily") {
       setMode("daily");
-      setConfig({ players: [(profile.name || "").trim() || "You"], timer: 20, sameQ: true, count: 10, pool: QUESTIONS, difficulty: "Mixed", cats: [] });
+      setConfig({ players: [who], timer: 20, sameQ: true, count: 10, pool: QUESTIONS, difficulty: "Mixed", cats: [] });
+      setRunKey((k) => k + 1);
+      setScreen("game");
+    } else if (pendingMode === "escape") {
+      const deck = buildEscapeDeck();
+      setMode("escape");
+      setConfig({ players: [who], timer: ESCAPE.timerStart, sameQ: true, count: deck.length, pool: deck, difficulty: "Ladder", cats: [] });
       setRunKey((k) => k + 1);
       setScreen("game");
     } else {
@@ -2236,7 +2996,26 @@ export default function OrbitTrivia() {
     }
   };
 
+  /* A fresh Escape run needs a fresh ladder, so "Launch again"
+     rebuilds the deck instead of replaying the same order. */
+  const relaunchEscape = () => {
+    const deck = buildEscapeDeck();
+    setConfig((c) => ({ ...c, count: deck.length, pool: deck }));
+    setRunKey((k) => k + 1);
+    setScreen("game");
+  };
+
   const finish = async (data) => {
+    if (data.escape) {
+      setResults({ ...data, prevBestV: escapeBest });
+      setScreen("results");
+      if (data.velocity > escapeBest) {
+        setEscapeBest(data.velocity);
+        try { await window.storage.set("orbit:escape", String(data.velocity)); } catch (e) { /* session only */ }
+      }
+      await saveStats({ ...stats, runs: stats.runs + 1 });
+      return;
+    }
     setResults({ ...data, prevBest: stats.best });
     setScreen("results");
     const topScore = Math.max(...data.scores);
@@ -2436,6 +3215,8 @@ export default function OrbitTrivia() {
           <Home
             onDaily={() => { setPendingMode("daily"); setScreen("driving"); }}
             onCustom={() => { setPendingMode("custom"); setScreen("driving"); }}
+            onEscape={() => { setPendingMode("escape"); setScreen("driving"); }}
+            escapeBest={escapeBest}
             stats={stats}
             dailyDone={dailyDone}
             themeName={theme.name}
@@ -2445,6 +3226,11 @@ export default function OrbitTrivia() {
             onOpenProfile={() => setScreen("profile")}
             streakMilestone={streakMilestone}
             onDismissMilestone={dismissMilestone}
+            soundOn={soundOn}
+            onToggleSound={toggleSound}
+            showInstall={showInstall}
+            onDismissInstall={dismissInstall}
+            androidPrompt={runAndroidInstall}
           />
         )}
 
@@ -2457,6 +3243,8 @@ export default function OrbitTrivia() {
             <Home
               onDaily={() => {}}
               onCustom={() => {}}
+              onEscape={() => {}}
+              escapeBest={escapeBest}
               stats={stats}
               dailyDone={dailyDone}
               themeName={theme.name}
@@ -2466,6 +3254,11 @@ export default function OrbitTrivia() {
               onOpenProfile={() => {}}
               streakMilestone={null}
               onDismissMilestone={() => {}}
+              soundOn={soundOn}
+              onToggleSound={() => {}}
+              showInstall={false}
+              onDismissInstall={() => {}}
+              androidPrompt={null}
             />
             <DrivingCheck onConfirm={afterDrivingCheck} onCancel={() => setScreen("home")} />
           </>
@@ -2483,12 +3276,22 @@ export default function OrbitTrivia() {
         )}
 
         {screen === "results" && results && (
-          <Results
-            data={results}
-            profile={profile}
-            onHome={() => setScreen("home")}
-            onAgain={() => { setRunKey((k) => k + 1); setScreen("game"); }}
-          />
+          results.escape ? (
+            <EscapeResults
+              data={results}
+              profile={profile}
+              prevBest={results.prevBestV}
+              onHome={() => setScreen("home")}
+              onAgain={relaunchEscape}
+            />
+          ) : (
+            <Results
+              data={results}
+              profile={profile}
+              onHome={() => setScreen("home")}
+              onAgain={() => { setRunKey((k) => k + 1); setScreen("game"); }}
+            />
+          )
         )}
       </div>
     </ThemeCtx.Provider>
