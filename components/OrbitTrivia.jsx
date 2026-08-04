@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
-import { Rocket, Play, Users, Trophy, X, Pause, ChevronRight, Check, Share2, Flame, Target, AlertTriangle, Repeat } from "lucide-react";
+import { Rocket, Play, Users, Trophy, X, Pause, ChevronRight, Check, Share2, Flame, Target, AlertTriangle, Repeat, User } from "lucide-react";
 
 /* ============================================================
    PERSISTENCE
@@ -68,6 +68,8 @@ const TIER_META = {
 };
 
 const CATEGORIES = ["Tesla", "SpaceX", "Starship", "FSD", "Gigafactory", "Neuralink", "Twitter/X", "Elon Personal"];
+
+const TESLA_MODELS = ["Model S", "Model 3", "Model X", "Model Y", "Cybertruck", "Roadster", "Semi", "Cybercab", "Not yet"];
 
 /* ============================================================
    QUESTION BANK
@@ -199,7 +201,32 @@ const todaySeed = () => {
   const d = new Date();
   return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
 };
-const todayKey = () => new Date().toISOString().slice(0, 10);
+
+/* Local-date key. Deliberately not toISOString(), which is UTC — that would
+   roll the "day" over at a different moment than todaySeed() above, so a
+   player could see tomorrow's questions while still marked done for today. */
+const dayKeyOf = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const todayKey = () => dayKeyOf(new Date());
+const yesterdayKey = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return dayKeyOf(d);
+};
+
+/* A streak only counts if the last play was today or yesterday. Anything
+   older is broken — reported as 0 without rewriting what's stored. */
+const liveDayStreak = (s) => {
+  if (!s || !s.lastDate) return 0;
+  return s.lastDate === todayKey() || s.lastDate === yesterdayKey() ? s.current : 0;
+};
+
+const bumpDayStreak = (s) => {
+  const today = todayKey();
+  if (s.lastDate === today) return s;
+  const current = s.lastDate === yesterdayKey() ? (s.current || 0) + 1 : 1;
+  return { lastDate: today, current, best: Math.max(s.best || 0, current) };
+};
 
 const ALTITUDES = [{ at: 0 }, { at: 0.33 }, { at: 0.66 }, { at: 1 }];
 
@@ -437,10 +464,10 @@ function TrajectoryRail({ progress, heat = 0 }) {
         <div
           className="absolute rounded-full"
           style={{
-            left: 15,
-            bottom: `calc(${p * 100}% - 22px)`,
-            width: 12,
-            height: 12 + h * 20,
+            left: 16,
+            bottom: `calc(${p * 100}% - 24px)`,
+            width: 13,
+            height: 13 + h * 22,
             background: `linear-gradient(180deg, ${C.abort}, transparent)`,
             filter: `blur(${3 + h * 3}px)`,
             opacity: 0.45 + h * 0.55,
@@ -451,13 +478,13 @@ function TrajectoryRail({ progress, heat = 0 }) {
       )}
       <div
         className="absolute"
-        style={{ left: 8, bottom: `calc(${p * 100}% - 12px)`, transition: "bottom .7s cubic-bezier(.2,.8,.2,1)" }}
+        style={{ left: 5, bottom: `calc(${p * 100}% - 15px)`, transition: "bottom .7s cubic-bezier(.2,.8,.2,1)" }}
       >
         <Rocket
-          size={26}
+          size={32}
           style={{
             color: C.star,
-            filter: `drop-shadow(0 0 ${8 + h * 18}px ${h > 0 ? C.abort : C.plasma})`,
+            filter: `drop-shadow(0 0 ${9 + h * 20}px ${h > 0 ? C.abort : C.plasma})`,
             transform: "rotate(-45deg)",
             animation: h >= 1 ? "blaze .9s ease-in-out infinite" : "none",
           }}
@@ -707,14 +734,14 @@ function DrivingCheck({ onConfirm, onCancel }) {
           </div>
         </div>
         <h2 className="text-center mb-2" style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 22, color: C.star }}>
-          Are you driving?
+          Behind the wheel?
         </h2>
         <p className="text-center text-sm mb-6" style={{ color: C.dim, lineHeight: 1.6 }}>
-          Hand the phone to a passenger. Keep your eyes on the road — the trivia will still be here when you park.
+          Let a passenger hold the phone and answer for you — you can still call out the answers.
         </p>
         <div className="flex flex-col gap-2">
-          <Btn full onClick={onConfirm}>I'm not driving</Btn>
-          <Btn full variant="ghost" onClick={onCancel}>I'm driving — go back</Btn>
+          <Btn full onClick={onConfirm}>I'm a passenger — let's go</Btn>
+          <Btn full variant="ghost" onClick={onCancel}>Maybe later</Btn>
         </div>
       </Panel>
     </div>
@@ -734,13 +761,16 @@ function Stat({ icon, label, value, color }) {
   );
 }
 
-function Home({ onDaily, onCustom, stats, dailyDone, onSwapTheme, themeName }) {
+function Home({ onDaily, onCustom, stats, dailyDone, onSwapTheme, themeName, profile, dayStreak, onOpenProfile, streakMilestone, onDismissMilestone }) {
   const C = useC();
+  const named = (profile.name || "").trim();
+  const milestoneLabel =
+    streakMilestone === 7 ? "ONE WEEK STRONG" : streakMilestone === 30 ? "ONE MONTH STRONG" : streakMilestone === 100 ? "CENTURION" : null;
   return (
     <div className="relative min-h-screen p-6 flex flex-col" style={{ background: C.void }}>
       <Starfield />
       <div className="relative z-10 flex flex-col flex-1 max-w-md w-full mx-auto">
-        <div className="pt-4 pb-8 flex items-center justify-between">
+        <div className="pt-4 pb-4 flex items-center justify-between">
           <Logo size={32} />
           <button
             onClick={onSwapTheme}
@@ -752,6 +782,42 @@ function Home({ onDaily, onCustom, stats, dailyDone, onSwapTheme, themeName }) {
               {themeName.toUpperCase()}
             </span>
           </button>
+        </div>
+
+        <div className="flex items-center gap-2 pb-6">
+          <button
+            onClick={onOpenProfile}
+            className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl active:scale-95"
+            style={{ background: C.hullLight, border: `1px solid ${C.edge}`, transition: "transform .12s" }}
+          >
+            <User size={14} style={{ color: named ? C.ion : C.dim, flexShrink: 0 }} />
+            <span
+              className="truncate text-left"
+              style={{
+                fontFamily: "'Chakra Petch', sans-serif",
+                fontWeight: 600,
+                fontSize: 13,
+                color: named ? C.star : C.dim,
+              }}
+            >
+              {named || "Set up your profile"}
+            </span>
+          </button>
+
+          {dayStreak > 0 && (
+            <div
+              className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl flex-shrink-0"
+              style={{ background: `${C.abort}14`, border: `1px solid ${C.abort}55` }}
+            >
+              <span style={{ fontSize: 13 }}>🔥</span>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 13, color: C.abort }}>
+                {dayStreak}
+              </span>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: C.dim, letterSpacing: "0.12em" }}>
+                {dayStreak === 1 ? "DAY" : "DAYS"}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col gap-3">
@@ -812,6 +878,28 @@ function Home({ onDaily, onCustom, stats, dailyDone, onSwapTheme, themeName }) {
           </Panel>
         </div>
       </div>
+
+      {milestoneLabel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ background: "#000000dd", backdropFilter: "blur(4px)" }}>
+          <Panel className="p-7 text-center" style={{ maxWidth: 340, borderColor: `${C.abort}66`, boxShadow: `0 0 60px ${C.abort}33` }}>
+            <div style={{ fontSize: 44, animation: "chargeup .8s ease-out" }}>🔥</div>
+            <div className="mt-3" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.abort, letterSpacing: "0.28em" }}>
+              {streakMilestone} DAY STREAK
+            </div>
+            <div className="mt-2" style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 28, color: C.star, textShadow: `0 0 26px ${C.abort}` }}>
+              {milestoneLabel}
+            </div>
+            <p className="text-sm mt-3 mb-6" style={{ color: C.dim, lineHeight: 1.6 }}>
+              {streakMilestone === 7
+                ? "Seven daily challenges in a row. The launch cadence is real."
+                : streakMilestone === 30
+                ? "Thirty straight days. That's mission-critical consistency."
+                : "One hundred consecutive days. Legendary."}
+            </p>
+            <Btn full onClick={onDismissMilestone}>Keep it going</Btn>
+          </Panel>
+        </div>
+      )}
     </div>
   );
 }
@@ -855,6 +943,98 @@ function Slider({ value, min, max, step, onChange, suffix }) {
           </button>
         );
       })}
+    </div>
+  );
+}
+
+function ProfileScreen({ profile, onSave, onBack }) {
+  const C = useC();
+  const [name, setName] = useState(profile.name || "");
+  const [handle, setHandle] = useState(profile.handle || "");
+  const [model, setModel] = useState(profile.model || "");
+
+  const field = {
+    background: C.hullLight,
+    border: `1px solid ${C.edge}`,
+    color: C.star,
+    fontFamily: "'Chakra Petch', sans-serif",
+  };
+
+  return (
+    <div className="relative min-h-screen p-6" style={{ background: C.void }}>
+      <Starfield />
+      <div className="relative z-10 max-w-md mx-auto pb-8">
+        <div className="flex items-center justify-between mb-6 pt-2">
+          <h1 style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 24, color: C.star }}>
+            Your profile
+          </h1>
+          <button onClick={onBack} className="active:scale-90" style={{ transition: "transform .12s" }}>
+            <X size={22} style={{ color: C.dim }} />
+          </button>
+        </div>
+
+        <p className="text-sm mb-6" style={{ color: C.dim, lineHeight: 1.6 }}>
+          Saved on this device only. Nothing is uploaded anywhere yet.
+        </p>
+
+        <Section label="DISPLAY NAME">
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={18}
+            placeholder="What should we call you?"
+            className="w-full px-3 py-3 rounded-xl text-sm outline-none"
+            style={field}
+          />
+        </Section>
+
+        <Section label="X USERNAME · OPTIONAL">
+          <div className="flex items-center gap-2 px-3 rounded-xl" style={field}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 15, color: C.dim }}>@</span>
+            <input
+              value={handle}
+              onChange={(e) => setHandle(e.target.value.replace(/^@+/, ""))}
+              maxLength={15}
+              placeholder="yourhandle"
+              className="flex-1 py-3 text-sm outline-none bg-transparent"
+              style={{ color: C.star, fontFamily: "'Chakra Petch', sans-serif", border: "none" }}
+            />
+          </div>
+        </Section>
+
+        <Section label="WHAT DO YOU DRIVE?">
+          <div className="flex flex-wrap gap-2">
+            {TESLA_MODELS.map((m) => {
+              const on = model === m;
+              return (
+                <button
+                  key={m}
+                  onClick={() => setModel(on ? "" : m)}
+                  className="px-3 py-2 rounded-full text-xs active:scale-95"
+                  style={{
+                    background: on ? `${C.ion}22` : C.hullLight,
+                    border: `1px solid ${on ? C.ion : C.edge}`,
+                    color: on ? C.ion : C.dim,
+                    fontFamily: "'Chakra Petch', sans-serif",
+                    fontWeight: 600,
+                    transition: "all .18s",
+                  }}
+                >
+                  {m}
+                </button>
+              );
+            })}
+          </div>
+        </Section>
+
+        <Btn
+          full
+          onClick={() => onSave({ name: name.trim(), handle: handle.trim(), model })}
+          style={{ padding: "16px", fontSize: 16 }}
+        >
+          Save profile
+        </Btn>
+      </div>
     </div>
   );
 }
@@ -1061,6 +1241,10 @@ function Game({ config, mode, onFinish, onQuit }) {
   const [paused, setPaused] = useState(false);
   const [shake, setShake] = useState(false);
   const [zap, setZap] = useState(false);
+  const [promo, setPromo] = useState(null);
+
+  const milestoneRef = useRef(null);
+  if (milestoneRef.current === null) milestoneRef.current = players.map(() => 0);
 
   const deckRef = useRef(null);
   if (deckRef.current === null) {
@@ -1094,6 +1278,19 @@ function Game({ config, mode, onFinish, onQuit }) {
       }
       const speedBonus = isRight ? Math.round(TIER_META[question.d].points * 0.5 * (timeLeft / timer)) : 0;
       const gain = isRight ? TIER_META[question.d].points + speedBonus : 0;
+
+      if (isRight) {
+        const maxS = totalRounds * 300 * 1.5;
+        const np = Math.min(1, (scores[pIndex] + gain) / (maxS * 0.6));
+        const marks = [[0.33, "ORBIT REACHED"], [0.66, "MARTIAN REACHED"], [1, "ESCAPE VELOCITY"]];
+        for (const [at, label] of marks) {
+          if (np >= at && milestoneRef.current[pIndex] < at) {
+            milestoneRef.current[pIndex] = at;
+            setPromo(label);
+            setTimeout(() => setPromo(null), 1700);
+          }
+        }
+      }
 
       setScores((s) => s.map((v, i) => (i === pIndex ? v + gain : v)));
       setCorrectCounts((s) => s.map((v, i) => (i === pIndex ? v + (isRight ? 1 : 0) : v)));
@@ -1159,7 +1356,31 @@ function Game({ config, mode, onFinish, onQuit }) {
   return (
     <div className="relative min-h-screen flex flex-col" style={{ background: C.void }}>
       <Starfield />
-      <div className="relative z-10 flex-1 flex flex-col max-w-md w-full mx-auto p-5">
+      <div
+        className="relative z-10 flex-1 flex flex-col max-w-md w-full mx-auto p-5"
+        style={{ animation: shake ? "screenshake .4s ease-out" : "none" }}
+      >
+        {promo && (
+          <div className="absolute inset-x-0 z-30 text-center pointer-events-none" style={{ top: "36%" }}>
+            <div style={{ animation: "promoPop 1.7s ease-out both" }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.ion, letterSpacing: "0.3em" }}>
+                ALTITUDE MILESTONE
+              </div>
+              <div
+                style={{
+                  fontFamily: "'Chakra Petch', sans-serif",
+                  fontWeight: 700,
+                  fontSize: 30,
+                  color: C.star,
+                  textShadow: `0 0 28px ${C.ion}`,
+                  marginTop: 4,
+                }}
+              >
+                {promo}
+              </div>
+            </div>
+          </div>
+        )}
         <div className="flex items-center justify-between mb-5">
           <button onClick={onQuit} className="p-2 -ml-2 active:scale-90">
             <X size={20} style={{ color: C.dim }} />
@@ -1332,7 +1553,113 @@ function Game({ config, mode, onFinish, onQuit }) {
   );
 }
 
-function Results({ data, onHome, onAgain }) {
+/* Full-screen liftoff for a perfect round. Plays once, then clears itself.
+   Real launches don't just slide upward — the vehicle shudders on the pad,
+   then accelerates away while smoke hangs where it stood. */
+function LaunchCelebration({ onDone, small = false, kicker = "FLAWLESS RUN", title = "PERFECT" }) {
+  const C = useC();
+  useEffect(() => {
+    const t = setTimeout(onDone, small ? 2600 : 3400);
+    return () => clearTimeout(t);
+  }, [onDone, small]);
+
+  const smoke = small ? [0, 1, 2, 3, 4] : [0, 1, 2, 3, 4, 5, 6, 7];
+  const streaks = [12, 26, 41, 57, 72, 88];
+  const rocketSize = small ? 48 : 68;
+
+  return (
+    <div className="fixed inset-0 z-50 pointer-events-none overflow-hidden" aria-hidden="true">
+      {/* speed streaks — the sky rushing past */}
+      {streaks.map((x, i) => (
+        <div
+          key={`st-${i}`}
+          className="absolute"
+          style={{
+            left: `${x}%`,
+            top: "-20%",
+            width: 2,
+            height: "34%",
+            background: `linear-gradient(180deg, transparent, ${C.star})`,
+            opacity: 0.5,
+            animation: `skyfall 1.1s linear ${0.9 + i * 0.12}s both`,
+          }}
+        />
+      ))}
+
+      {/* the vehicle: shudder on the pad, then liftoff */}
+      <div
+        className="absolute"
+        style={{
+          left: "50%",
+          bottom: 0,
+          marginLeft: small ? -24 : -34,
+          animation: `liftoff ${small ? 2.2 : 3.2}s cubic-bezier(.55,.02,.85,.4) both`,
+        }}
+      >
+        <div style={{ animation: "padshake .12s linear 0s 8" }}>
+          <Rocket size={rocketSize} style={{ color: C.star, transform: "rotate(-45deg)", filter: `drop-shadow(0 0 26px ${C.ion})` }} />
+          {/* exhaust plume — blooms wider than the vehicle */}
+          <div
+            className="absolute"
+            style={{
+              left: "50%",
+              top: small ? 38 : 52,
+              marginLeft: small ? -13 : -17,
+              width: small ? 26 : 34,
+              height: small ? 95 : 130,
+              background: `linear-gradient(180deg, #FFFFFF 0%, ${C.ion} 22%, ${C.abort} 55%, transparent 100%)`,
+              filter: "blur(7px)",
+              borderRadius: "50% 50% 50% 50% / 22% 22% 78% 78%",
+              animation: "plume .16s ease-in-out infinite alternate",
+            }}
+          />
+        </div>
+      </div>
+
+      {/* pad smoke — hangs low after the rocket is gone */}
+      {smoke.map((i) => (
+        <div
+          key={`sm-${i}`}
+          className="absolute rounded-full"
+          style={{
+            left: `calc(50% + ${(i - 3.5) * 34}px)`,
+            bottom: -26,
+            width: 62 + (i % 3) * 22,
+            height: 62 + (i % 3) * 22,
+            background: `radial-gradient(circle, ${C.dim}66 0%, transparent 68%)`,
+            filter: "blur(9px)",
+            animation: `smokeout 2.6s ease-out ${0.55 + (i % 4) * 0.14}s both`,
+          }}
+        />
+      ))}
+
+      {/* the verdict */}
+      <div
+        className="absolute inset-x-0 text-center px-6"
+        style={{ top: "34%", animation: `verdictIn .7s cubic-bezier(.2,.8,.2,1) ${small ? 1.0 : 1.5}s both` }}
+      >
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.ion, letterSpacing: "0.3em" }}>
+          {kicker}
+        </div>
+        <div
+          className="truncate"
+          style={{
+            fontFamily: "'Chakra Petch', sans-serif",
+            fontWeight: 700,
+            fontSize: small ? 30 : 44,
+            color: C.star,
+            textShadow: `0 0 34px ${C.ion}`,
+            marginTop: 6,
+          }}
+        >
+          {title}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Results({ data, onHome, onAgain, profile = {} }) {
   const C = useC();
   const { players, scores, correctCounts, bestStreaks, totalRounds } = data;
   const ranked = players
@@ -1340,10 +1667,14 @@ function Results({ data, onHome, onAgain }) {
     .sort((a, b) => b.score - a.score);
   const winner = ranked[0];
   const solo = players.length === 1;
+  const perfect = winner.correct === totalRounds && totalRounds >= 5;
+  const winnerLaunch = !perfect && !solo;
+  const [celebrating, setCelebrating] = useState(perfect || winnerLaunch);
 
   const share = () => {
+    const ride = profile.model && profile.model !== "Not yet" ? ` ${profile.model} owner here.` : "";
     const text = solo
-      ? `I scored ${winner.score} on Orbit Trivia — ${winner.correct}/${totalRounds} on Tesla, SpaceX and Elon deep cuts. Think you can beat that? 🚀`
+      ? `I scored ${winner.score} on Orbit Trivia — ${winner.correct}/${totalRounds} on Tesla, SpaceX and Elon deep cuts.${ride} Think you can beat that? 🚀`
       : `${winner.name} just took the car with ${winner.score} points on Orbit Trivia 🚀 Tesla + SpaceX deep cuts. Who's beating that?`;
     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank");
   };
@@ -1351,6 +1682,14 @@ function Results({ data, onHome, onAgain }) {
   return (
     <div className="relative min-h-screen p-6" style={{ background: C.void }}>
       <Starfield />
+      {celebrating && (
+        <LaunchCelebration
+          small={!perfect}
+          kicker={perfect ? "FLAWLESS RUN" : "ROAD TRIP CHAMPION"}
+          title={perfect ? "PERFECT" : winner.name.toUpperCase()}
+          onDone={() => setCelebrating(false)}
+        />
+      )}
       <div className="relative z-10 max-w-md mx-auto">
         <div className="text-center pt-8 pb-8">
           <div
@@ -1436,6 +1775,9 @@ export default function OrbitTrivia() {
   const [runKey, setRunKey] = useState(0);
   const [stats, setStats] = useState({ best: 0, streak: 0, runs: 0 });
   const [dailyDone, setDailyDone] = useState(false);
+  const [profile, setProfile] = useState({ name: "", handle: "", model: "" });
+  const [dayStreakData, setDayStreakData] = useState({ lastDate: null, current: 0, best: 0 });
+  const [streakMilestone, setStreakMilestone] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -1451,6 +1793,18 @@ export default function OrbitTrivia() {
         const d = await window.storage.get("orbit:daily");
         if (d?.value && JSON.parse(d.value).date === todayKey()) setDailyDone(true);
       } catch (e) { /* no daily record yet */ }
+      try {
+        const p = await window.storage.get("orbit:profile");
+        if (p?.value) setProfile({ name: "", handle: "", model: "", ...JSON.parse(p.value) });
+      } catch (e) { /* no profile yet */ }
+      try {
+        const ds = await window.storage.get("orbit:daystreak");
+        if (ds?.value) setDayStreakData({ lastDate: null, current: 0, best: 0, ...JSON.parse(ds.value) });
+      } catch (e) { /* no day streak yet */ }
+      try {
+        const m = await window.storage.get("orbit:milestone");
+        if (m?.value) setStreakMilestone(parseInt(m.value, 10));
+      } catch (e) { /* no pending milestone */ }
       setBooted(true);
     })();
   }, []);
@@ -1458,6 +1812,17 @@ export default function OrbitTrivia() {
   const pickTheme = async (id) => {
     setThemeId(id);
     try { await window.storage.set("orbit:theme", id); } catch (e) { /* not fatal */ }
+  };
+
+  const dismissMilestone = async () => {
+    setStreakMilestone(null);
+    try { await window.storage.set("orbit:milestone", ""); } catch (e) { /* not fatal */ }
+  };
+
+  const saveProfile = async (next) => {
+    setProfile(next);
+    try { await window.storage.set("orbit:profile", JSON.stringify(next)); } catch (e) { /* session only */ }
+    setScreen("home");
   };
 
   const saveStats = async (next) => {
@@ -1468,7 +1833,7 @@ export default function OrbitTrivia() {
   const afterDrivingCheck = () => {
     if (pendingMode === "daily") {
       setMode("daily");
-      setConfig({ players: ["You"], timer: 20, sameQ: true, count: 10, pool: QUESTIONS, difficulty: "Mixed", cats: [] });
+      setConfig({ players: [(profile.name || "").trim() || "You"], timer: 20, sameQ: true, count: 10, pool: QUESTIONS, difficulty: "Mixed", cats: [] });
       setRunKey((k) => k + 1);
       setScreen("game");
     } else {
@@ -1489,6 +1854,15 @@ export default function OrbitTrivia() {
     if (mode === "daily") {
       setDailyDone(true);
       try { await window.storage.set("orbit:daily", JSON.stringify({ date: todayKey(), score: topScore })); } catch (e) { /* not fatal */ }
+      const nextStreak = bumpDayStreak(dayStreakData);
+      if (nextStreak !== dayStreakData) {
+        setDayStreakData(nextStreak);
+        try { await window.storage.set("orbit:daystreak", JSON.stringify(nextStreak)); } catch (e) { /* not fatal */ }
+        if (nextStreak.current === 7 || nextStreak.current === 30 || nextStreak.current === 100) {
+          setStreakMilestone(nextStreak.current);
+          try { await window.storage.set("orbit:milestone", String(nextStreak.current)); } catch (e) { /* not fatal */ }
+        }
+      }
     }
   };
 
@@ -1532,6 +1906,49 @@ export default function OrbitTrivia() {
         from { transform: scaleY(1) translateY(0);      opacity: .7; }
         to   { transform: scaleY(1.3) translateY(2px);  opacity: 1; }
       }
+      @keyframes liftoff {
+        0%   { transform: translateY(0); }
+        28%  { transform: translateY(0); }
+        45%  { transform: translateY(-14vh); }
+        100% { transform: translateY(-160vh); }
+      }
+      @keyframes padshake {
+        0%, 100% { transform: translateX(0); }
+        25%      { transform: translateX(-2px); }
+        75%      { transform: translateX(2px); }
+      }
+      @keyframes plume {
+        from { opacity: .85; transform: scaleY(1); }
+        to   { opacity: 1;   transform: scaleY(1.18); }
+      }
+      @keyframes smokeout {
+        0%   { transform: translateY(0) scale(.6);      opacity: 0; }
+        18%  { opacity: .85; }
+        100% { transform: translateY(-52px) scale(2.2); opacity: 0; }
+      }
+      @keyframes skyfall {
+        0%   { transform: translateY(0);      opacity: 0; }
+        15%  { opacity: .55; }
+        100% { transform: translateY(130vh);  opacity: 0; }
+      }
+      @keyframes verdictIn {
+        0%   { transform: scale(.7) translateY(12px); opacity: 0; }
+        100% { transform: scale(1)  translateY(0);    opacity: 1; }
+      }
+      @keyframes screenshake {
+        0%, 100% { transform: translateX(0); }
+        20%      { transform: translateX(-5px); }
+        40%      { transform: translateX(4px); }
+        60%      { transform: translateX(-3px); }
+        80%      { transform: translateX(2px); }
+      }
+      @keyframes promoPop {
+        0%   { transform: scale(.6);  opacity: 0; }
+        12%  { transform: scale(1.06); opacity: 1; }
+        20%  { transform: scale(1); }
+        78%  { opacity: 1; }
+        100% { transform: scale(1);  opacity: 0; }
+      }
       @keyframes chargeup {
         0%   { transform: scale(1); }
         35%  { transform: scale(1.035); }
@@ -1574,12 +1991,33 @@ export default function OrbitTrivia() {
             dailyDone={dailyDone}
             themeName={theme.name}
             onSwapTheme={() => pickTheme(themeId === "moon" ? "mars" : "moon")}
+            profile={profile}
+            dayStreak={liveDayStreak(dayStreakData)}
+            onOpenProfile={() => setScreen("profile")}
+            streakMilestone={streakMilestone}
+            onDismissMilestone={dismissMilestone}
           />
+        )}
+
+        {screen === "profile" && (
+          <ProfileScreen profile={profile} onSave={saveProfile} onBack={() => setScreen("home")} />
         )}
 
         {screen === "driving" && (
           <>
-            <Home onDaily={() => {}} onCustom={() => {}} stats={stats} dailyDone={dailyDone} themeName={theme.name} onSwapTheme={() => {}} />
+            <Home
+              onDaily={() => {}}
+              onCustom={() => {}}
+              stats={stats}
+              dailyDone={dailyDone}
+              themeName={theme.name}
+              onSwapTheme={() => {}}
+              profile={profile}
+              dayStreak={liveDayStreak(dayStreakData)}
+              onOpenProfile={() => {}}
+              streakMilestone={null}
+              onDismissMilestone={() => {}}
+            />
             <DrivingCheck onConfirm={afterDrivingCheck} onCancel={() => setScreen("home")} />
           </>
         )}
@@ -1598,6 +2036,7 @@ export default function OrbitTrivia() {
         {screen === "results" && results && (
           <Results
             data={results}
+            profile={profile}
             onHome={() => setScreen("home")}
             onAgain={() => { setRunKey((k) => k + 1); setScreen("game"); }}
           />
