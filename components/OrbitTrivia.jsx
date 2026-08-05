@@ -6,87 +6,18 @@ import { QUESTIONS, TIER_META, CATEGORIES, TESLA_MODELS } from "@/lib/questions"
 import { shuffle, buzz } from "@/lib/util";
 import { SFX } from "@/lib/sfx";
 import { storage } from "@/lib/storage";
+import { todaySeed, todayKey, liveDayStreak, bumpDayStreak } from "@/lib/day";
+import { ESCAPE, escapeTimer, buildEscapeDeck } from "@/lib/escape";
+import { isInstalled, isIOSSafari } from "@/lib/platform";
 
 
 /* ============================================================
    HELPERS
    ============================================================ */
 
-const todaySeed = () => {
-  const d = new Date();
-  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
-};
-
-
-/* Local-date key. Deliberately not toISOString(), which is UTC — that would
-   roll the "day" over at a different moment than todaySeed() above, so a
-   player could see tomorrow's questions while still marked done for today. */
-const dayKeyOf = (d) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-const todayKey = () => dayKeyOf(new Date());
-const yesterdayKey = () => {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return dayKeyOf(d);
-};
-
-/* A streak only counts if the last play was today or yesterday. Anything
-   older is broken — reported as 0 without rewriting what's stored. */
-const liveDayStreak = (s) => {
-  if (!s || !s.lastDate) return 0;
-  return s.lastDate === todayKey() || s.lastDate === yesterdayKey() ? s.current : 0;
-};
-
-const bumpDayStreak = (s) => {
-  const today = todayKey();
-  if (s.lastDate === today) return s;
-  const current = s.lastDate === yesterdayKey() ? (s.current || 0) + 1 : 1;
-  return { lastDate: today, current, best: Math.max(s.best || 0, current) };
-};
 
 const ALTITUDES = [{ at: 0 }, { at: 0.33 }, { at: 0.66 }, { at: 1 }];
 
-/* ============================================================
-   ESCAPE VELOCITY
-   An endless run measured in real orbital physics. Every correct
-   answer adds velocity, the multiplier climbs with the streak,
-   and one wrong answer means gravity wins.
-
-   The thresholds aren't invented: 7.8 km/s is low Earth orbit,
-   11.2 is escape from Earth, 16.6 is escape from the Sun.
-   ============================================================ */
-const ESCAPE = {
-  gain: { Earthbound: 0.5, Orbit: 0.7, Martian: 0.95 },  // km/s before multipliers
-  multStep: 0.04,
-  timerStart: 15,
-  timerFloor: 7,
-  timerDrop: 0.4,   // seconds shaved off the clock each question
-  /* Every threshold is a real figure, which is what makes the
-     climb mean something. Roughly: orbit around Q9, escape around
-     Q12, and Earth's own orbital speed at about Q22 — a long way
-     out for anyone who gets there. */
-  marks: [
-    { at: 7.8, label: "LOW EARTH ORBIT" },
-    { at: 11.2, label: "ESCAPE VELOCITY", big: true },
-    { at: 16.6, label: "SOLAR ESCAPE" },
-    { at: 29.8, label: "EARTH'S ORBITAL SPEED" },
-  ],
-};
-
-/* The clock tightens as you climb — 15 seconds at the pad, 7 by
-   the time you're deep into Martian territory. */
-const escapeTimer = (i) => Math.max(ESCAPE.timerFloor, Math.round(ESCAPE.timerStart - i * ESCAPE.timerDrop));
-
-/* Questions get harder the higher you get: four Earthbound to
-   start, eight Orbit through the middle, Martian from there on.
-   Whatever's left over is appended so a freakishly long run can
-   never run the deck dry. */
-const buildEscapeDeck = () => {
-  const tier = (t) => shuffle(QUESTIONS.filter((q) => q.d === t));
-  const ladder = [...tier("Earthbound").slice(0, 4), ...tier("Orbit").slice(0, 8), ...tier("Martian")];
-  const used = new Set(ladder);
-  return [...ladder, ...shuffle(QUESTIONS.filter((q) => !used.has(q)))];
-};
 
 /* ============================================================
    PLANETS — rendered in code, no image files
@@ -688,29 +619,6 @@ const CARD_SHARDS = [
   { clip: "polygon(51% 70%, 68% 62%, 84% 70%, 100% 66%, 100% 100%, 49% 100%)", x: "14px", y: "11px", r: "-2.5deg" },
 ];
 
-/* ============================================================
-   ADD TO HOME SCREEN
-   iOS never prompts on its own — the player has to be told the
-   Share sheet exists. Android fires a real install event we can
-   trigger from a button, so both paths are handled here.
-   ============================================================ */
-const isInstalled = () => {
-  if (typeof window === "undefined") return false;
-  return window.navigator.standalone === true ||
-    (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
-};
-
-/* Only Safari on iOS can add to the home screen. Chrome and
-   Firefox on iOS can't, so showing them the instructions would
-   just be wrong. iPads report themselves as Macs now, hence the
-   touch-point check. */
-const isIOSSafari = () => {
-  if (typeof navigator === "undefined") return false;
-  const ua = navigator.userAgent;
-  const ios = /iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
-  const otherBrowser = /crios|fxios|edgios|opios|opr\//i.test(ua);
-  return ios && !otherBrowser;
-};
 
 function InstallHint({ onDismiss, androidPrompt }) {
   const C = useC();
