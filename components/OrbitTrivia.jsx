@@ -1197,60 +1197,190 @@ function InstallHint({ onDismiss, androidPrompt }) {
 }
 
 /* ============================================================
-   HOME LAUNCH — every timing in one place.
-   Bigger stagger = a slower wave up the stack.
-   Bigger spread  = debris thrown further from the card.
+   HOME LAUNCH
+   The ascent and the catch are driven by requestAnimationFrame,
+   not by CSS keyframes, because a card has to break on the frame
+   the nose actually crosses it — a fixed delay drifts on every
+   different screen height. Everything tunable lives here.
    ============================================================ */
 const LAUNCH = {
-  ignitionMs: 800,    // hold-down before release
-  flyMs: 1900,        // release -> coast
-  zeroMs: 1600,       // debris hanging in zero-g
-  returnMs: 1700,     // boost-back -> back on the pad
-  stagger: 0.34,      // seconds between each card breaking
-  shatterSec: 1.05,   // how long one card takes to come apart
-  snapSec: 0.85,      // how long it takes to weld back
-  snapDelay: 0.45,
-  spread: 3.4,        // throw distance, x the shard's base offset
-  spread2: 3.8,       // drift limit while floating
+  ignitionMs: 850,     // hold-down before release
+  ascentSec: 1.55,     // pad to out-of-frame
+  hangMs: 1500,        // debris floating, rocket out of sight
+  descentSec: 2.2,     // re-entry, retro-burn, catch
+  exitFactor: 1.9,     // screen heights travelled before turnaround
+  armsCloseAt: 0.68,   // fraction of the descent when the chopsticks move
+  shatterSec: 1.0,     // one card coming apart
+  weldSec: 0.95,       // one card welding back
+  spread: 3.2,         // debris throw, x the shard's base offset
+  spread2: 3.6,        // drift limit while floating
 };
+
+/* the shared fracture edges of CARD_SHARDS, as one path in a
+   0..100 box — drawn over a broken card so the cracks can glow */
+const CRACK_PATH =
+  "M48 0 L52 20 L46 45 M0 44 L14 48 L30 40 L46 45 L51 70 L68 62 L84 70 L100 66 M51 70 L49 100";
+
+function CardCracks({ phase }) {
+  const C = useC();
+  const anim =
+    phase === "weld"
+      ? `crackFlare ${LAUNCH.weldSec}s ease-out both`
+      : "crackIn .3s ease-out both";
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+      className="absolute inset-0 pointer-events-none"
+      style={{ width: "100%", height: "100%", overflow: "visible", animation: anim }}
+    >
+      <path d={CRACK_PATH} fill="none" stroke={C.ion} strokeWidth={3} opacity={0.35}
+            vectorEffect="non-scaling-stroke" style={{ filter: "blur(2px)" }} />
+      <path d={CRACK_PATH} fill="none" stroke="#FFFFFF" strokeWidth={1} opacity={0.9}
+            vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
 
 function Home({ onDaily, onCustom, onEscape, escapeBest = 0, stats, dailyDone, onSwapTheme, themeName, profile, dayStreak, onOpenProfile, streakMilestone, onDismissMilestone, soundOn, onToggleSound, showInstall, onDismissInstall, androidPrompt }) {
   const C = useC();
   const named = (profile.name || "").trim();
-  const [rocketPhase, setRocketPhase] = useState("idle"); // idle | ignition | flying | zeroG | returning
+
+  /* idle | ignition | ascent | hang | descent | weld */
+  const [phase, setPhase] = useState("idle");
+  const [hitCards, setHitCards] = useState([]);   // indices the rocket has struck
+  const [arms, setArms] = useState("open");       // open | closing | clamped
+
+  const rocketRef = useRef(null);
+  const cardRefs = useRef([]);
+  const rafRef = useRef(null);
   const timers = useRef([]);
 
-  /* leaving home mid-launch must not leave timeouts firing into a dead component */
-  useEffect(() => () => timers.current.forEach(clearTimeout), []);
-
-  const tapRocket = () => {
-    if (rocketPhase !== "idle") return;
+  const stopAll = () => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
     timers.current.forEach(clearTimeout);
     timers.current = [];
-    const at = (ms, fn) => timers.current.push(setTimeout(fn, ms));
+  };
+  useEffect(() => stopAll, []);
+  const at = (ms, fn) => timers.current.push(setTimeout(fn, ms));
 
-    // 1 — ignition: hold-down, pad bloom, engines spooling
+  const setRocket = (y, scale) => {
+    if (rocketRef.current) rocketRef.current.style.transform = `translateY(${y}px) scale(${scale})`;
+  };
+
+  const tapRocket = () => {
+    if (phase !== "idle") return;
+    stopAll();
+
+    const reduced =
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) { SFX.ui(); buzz(20); return; }
+
     buzz([20, 30, 20, 40, 80]);
     SFX.engineUp(0.55);
-    setRocketPhase("ignition");
-
-    // 2 — release: the cards go with it
-    at(LAUNCH.ignitionMs, () => {
-      SFX.engineOff(0.08);
-      SFX.liftoff(true);
-      buzz([40, 30, 90]);
-      setRocketPhase("flying");
-    });
-
-    // 3 — coast: debris hangs in zero-g
-    at(LAUNCH.ignitionMs + LAUNCH.flyMs, () => { SFX.whoosh(); setRocketPhase("zeroG"); });
-
-    // 4 — boost-back and landing
-    at(LAUNCH.ignitionMs + LAUNCH.flyMs + LAUNCH.zeroMs, () => setRocketPhase("returning"));
-    at(LAUNCH.ignitionMs + LAUNCH.flyMs + LAUNCH.zeroMs + LAUNCH.returnMs, () => setRocketPhase("idle"));
+    setPhase("ignition");
+    at(LAUNCH.ignitionMs, ascend);
   };
-  const launching = rocketPhase !== "idle";
-  const broken = rocketPhase === "flying" || rocketPhase === "zeroG" || rocketPhase === "returning";
+
+  /* ---- climb: cards break on contact, not on a timer ---- */
+  const ascend = () => {
+    SFX.engineOff(0.08);
+    SFX.liftoff(true);
+    buzz([40, 30, 90]);
+    setPhase("ascent");
+
+    const H = typeof window !== "undefined" ? window.innerHeight : 800;
+    const dist = LAUNCH.exitFactor * H;
+    const T = LAUNCH.ascentSec;
+    const accel = (2 * dist) / (T * T);           // constant-thrust climb
+
+    const noseStart = rocketRef.current ? rocketRef.current.getBoundingClientRect().top : 0;
+    /* the underside of each card, measured once — nothing reflows mid-launch */
+    const edges = cardRefs.current.map((n) => (n ? n.getBoundingClientRect().bottom : -1));
+    const struck = new Set();
+    const t0 = performance.now();
+    let lastHit = t0;
+
+    const step = (now) => {
+      const t = (now - t0) / 1000;
+      const y = -0.5 * accel * t * t;
+      setRocket(y, Math.max(0.6, 1 - -y / (dist * 2.4)));
+
+      const nose = noseStart + y;
+      edges.forEach((edge, i) => {
+        if (edge >= 0 && !struck.has(i) && nose <= edge) {
+          struck.add(i);
+          lastHit = now;
+          SFX.whoosh();
+          buzz(28);
+          setHitCards((h) => (h.includes(i) ? h : [...h, i]));
+        }
+      });
+
+      if (t < T) rafRef.current = requestAnimationFrame(step);
+      else {
+        setRocket(-dist, 0.6);
+        /* the last card hit is still coming apart — let it finish before the
+           shards switch over to their floating loop, or it snaps mid-throw */
+        const settle = Math.max(0, LAUNCH.shatterSec * 1000 - (performance.now() - lastHit));
+        at(settle, () => {
+          setPhase("hang");
+          at(LAUNCH.hangMs, descend);
+        });
+      }
+    };
+    rafRef.current = requestAnimationFrame(step);
+  };
+
+  /* ---- the catch: retro-burn to zero right at the arms ---- */
+  const descend = () => {
+    setPhase("descent");
+    SFX.engineUp(0.4);
+    setArms("open");
+
+    const H = typeof window !== "undefined" ? window.innerHeight : 800;
+    const dist = LAUNCH.exitFactor * H;
+    const T = LAUNCH.descentSec;
+    const t0 = performance.now();
+    let armed = false;
+
+    const step = (now) => {
+      const t = Math.min((now - t0) / 1000, T);
+      const k = t / T;
+      /* (1-k)^2 lands with velocity zero — a suicide burn, not a drop */
+      const y = -dist * (1 - k) * (1 - k);
+      setRocket(y, 0.6 + 0.4 * k);
+
+      if (!armed && k >= LAUNCH.armsCloseAt) {
+        armed = true;
+        setArms("closing");
+        SFX.ui();
+      }
+
+      if (t < T) rafRef.current = requestAnimationFrame(step);
+      else {
+        setRocket(0, 1);
+        SFX.engineOff(0.22);
+        buzz([60, 40, 140]);
+        setArms("clamped");
+        setPhase("weld");                     // caught — now the cards come home
+        at(LAUNCH.weldSec * 1000 + 260, () => {
+          setPhase("idle");
+          setHitCards([]);
+          setArms("open");
+          if (rocketRef.current) rocketRef.current.style.transform = "";
+        });
+      }
+    };
+    rafRef.current = requestAnimationFrame(step);
+  };
+
+  const launching = phase !== "idle";
+  const burning = phase === "ignition" || phase === "ascent" || phase === "descent";
+
   const milestoneLabel =
     streakMilestone === 7 ? "ONE WEEK STRONG" : streakMilestone === 30 ? "ONE MONTH STRONG" : streakMilestone === 100 ? "CENTURION" : null;
   return (
@@ -1402,60 +1532,60 @@ function Home({ onDaily, onCustom, onEscape, escapeBest = 0, stats, dailyDone, o
                 </Panel>
               ),
             },
-          ].map(({ key, onTap, card }, idx, all) => {
-            /* the shockwave starts at the pad, so the bottom card goes first */
-            const wave = (all.length - 1 - idx) * LAUNCH.stagger;
+          ].map(({ key, onTap, card }, idx) => {
+            const hit = hitCards.includes(idx);
+            const welding = phase === "weld";
             return (
-            <div key={key} className="relative">
-              {/* the real, tappable card — hides at the moment of impact */}
-              <button
-                onClick={onTap}
-                tabIndex={launching ? -1 : 0}
-                aria-hidden={broken}
-                className="text-left active:scale-95 w-full block"
-                style={{
-                  transition: "transform .12s",
-                  /* an opacity-0 card is still tappable, so the pointer goes with it */
-                  pointerEvents: launching ? "none" : "auto",
-                  animation:
-                    rocketPhase === "flying" || rocketPhase === "zeroG"
-                      ? `cardvanish .01s linear ${wave}s both`
-                      : rocketPhase === "returning"
-                      ? `cardreturn .01s linear ${LAUNCH.snapDelay + LAUNCH.snapSec * 0.72}s both`
+              <div key={key} className="relative" ref={(el) => { cardRefs.current[idx] = el; }}>
+                {/* the real, tappable card — disappears the instant the nose reaches it */}
+                <button
+                  onClick={onTap}
+                  tabIndex={launching ? -1 : 0}
+                  aria-hidden={hit}
+                  className="text-left active:scale-95 w-full block"
+                  style={{
+                    transition: "transform .12s",
+                    /* an opacity-0 card is still tappable, so the pointer goes with it */
+                    pointerEvents: launching ? "none" : "auto",
+                    opacity: hit && !welding ? 0 : 1,
+                    animation: hit && welding
+                      ? `cardreturn .01s linear ${LAUNCH.weldSec * 0.8}s both`
                       : "none",
-                }}
-              >
-                {card}
-              </button>
+                  }}
+                >
+                  {card}
+                </button>
 
-              {/* the same card as four shards — separate on impact, weld back on return */}
-              {broken &&
-                CARD_SHARDS.map((sh, i) => (
-                  <div
-                    key={i}
-                    aria-hidden="true"
-                    className="absolute inset-0 pointer-events-none"
-                    style={{
-                      clipPath: sh.clip,
-                      WebkitClipPath: sh.clip,
-                      willChange: "transform, opacity",
-                      "--sx": sh.x,
-                      "--sy": sh.y,
-                      "--sr": sh.r,
-                      "--spread": LAUNCH.spread,
-                      "--spread2": LAUNCH.spread2,
-                      animation:
-                        rocketPhase === "flying"
-                          ? `extremeShatter ${LAUNCH.shatterSec}s cubic-bezier(.25,.7,.3,1) ${wave}s both`
-                          : rocketPhase === "zeroG"
-                          ? `zeroFloat 3.4s ease-in-out ${wave * 0.5}s infinite both`
-                          : `hardSnap ${LAUNCH.snapSec}s cubic-bezier(.25,.85,.35,1) ${LAUNCH.snapDelay}s both`,
-                    }}
-                  >
-                    {card}
-                  </div>
-                ))}
-            </div>
+                {/* the same card as four shards, thrown apart and welded back */}
+                {hit &&
+                  CARD_SHARDS.map((sh, i) => (
+                    <div
+                      key={i}
+                      aria-hidden="true"
+                      className="absolute inset-0 pointer-events-none"
+                      style={{
+                        clipPath: sh.clip,
+                        WebkitClipPath: sh.clip,
+                        willChange: "transform, opacity",
+                        "--sx": sh.x,
+                        "--sy": sh.y,
+                        "--sr": sh.r,
+                        "--spread": LAUNCH.spread,
+                        "--spread2": LAUNCH.spread2,
+                        animation: welding
+                          ? `hardSnap ${LAUNCH.weldSec}s cubic-bezier(.25,.85,.35,1) both`
+                          : phase === "ascent"
+                          ? `extremeShatter ${LAUNCH.shatterSec}s cubic-bezier(.25,.7,.3,1) both`
+                          : `zeroFloat 3.4s ease-in-out ${idx * 0.25}s infinite both`,
+                      }}
+                    >
+                      {card}
+                    </div>
+                  ))}
+
+                {/* fracture lines: lit while it's in pieces, white-hot as it welds */}
+                {hit && <CardCracks phase={welding ? "weld" : "broken"} />}
+              </div>
             );
           })}
         </div>
@@ -1468,17 +1598,20 @@ function Home({ onDaily, onCustom, onEscape, escapeBest = 0, stats, dailyDone, o
             style={{ background: "transparent", border: "none", cursor: "pointer", padding: "20px 40px 28px", transition: "transform .12s ease" }}
           >
             <span
+              ref={rocketRef}
               style={{
                 position: "relative",
+                zIndex: 1,
                 display: "inline-block",
+                willChange: "transform",
+                /* ascent and descent are set frame by frame in JS — CSS only
+                   owns the idle drift and the hold-down shake */
                 animation:
-                  rocketPhase === "flying" || rocketPhase === "zeroG"
-                    ? `extremeLaunch ${(LAUNCH.flyMs + LAUNCH.zeroMs * 0.55) / 1000}s cubic-bezier(.5,.03,.8,.4) both`
-                    : rocketPhase === "returning"
-                    ? `boostBack ${LAUNCH.returnMs * 0.8 / 1000}s cubic-bezier(.2,.85,.3,1) both`
-                    : rocketPhase === "ignition"
+                  phase === "ignition"
                     ? "padshake .09s linear infinite"
-                    : "drift 4.5s ease-in-out infinite",
+                    : phase === "idle"
+                    ? "drift 4.5s ease-in-out infinite"
+                    : "none",
               }}
             >
               <Rocket
@@ -1486,11 +1619,11 @@ function Home({ onDaily, onCustom, onEscape, escapeBest = 0, stats, dailyDone, o
                 style={{
                   color: C.star,
                   transform: "rotate(-45deg)",
-                  filter: `drop-shadow(0 0 ${rocketPhase === "ignition" || rocketPhase === "flying" ? 42 : 28}px ${C.ion})`,
+                  filter: `drop-shadow(0 0 ${burning ? 42 : 28}px ${C.ion})`,
                   transition: "filter .3s ease",
                 }}
               />
-              {(rocketPhase === "ignition" || rocketPhase === "flying" || rocketPhase === "returning") && (
+              {burning && (
                 <span
                   aria-hidden="true"
                   style={{
@@ -1499,7 +1632,7 @@ function Home({ onDaily, onCustom, onEscape, escapeBest = 0, stats, dailyDone, o
                     top: 76,
                     marginLeft: -13,
                     width: 26,
-                    height: rocketPhase === "ignition" ? 52 : 96,
+                    height: phase === "ascent" ? 96 : 52,
                     transition: "height .4s ease",
                     background: `linear-gradient(180deg, #FFFFFF 0%, ${C.ion} 24%, ${C.abort} 58%, transparent 100%)`,
                     filter: "blur(6px)",
@@ -1509,8 +1642,32 @@ function Home({ onDaily, onCustom, onEscape, escapeBest = 0, stats, dailyDone, o
                 />
               )}
             </span>
+
+            {/* ---- chopstick arms: open on the tower, closed around the rocket ---- */}
+            {[-1, 1].map((side) => (
+              <span
+                key={side}
+                aria-hidden="true"
+                className="absolute"
+                style={{
+                  zIndex: 2,
+                  left: "50%",
+                  bottom: 12,
+                  width: 7,
+                  height: arms === "open" ? 54 : 62,
+                  borderRadius: 4,
+                  background: `linear-gradient(180deg, ${C.edge}, ${C.hullLight})`,
+                  border: `1px solid ${arms === "clamped" ? C.ion : C.edge}`,
+                  boxShadow: arms === "clamped" ? `0 0 16px ${C.ion}88` : "none",
+                  transform: `translateX(${side * (arms === "open" ? 46 : 17)}px)`,
+                  transition: "transform .55s cubic-bezier(.3,.9,.35,1), height .55s ease, border-color .3s, box-shadow .3s",
+                }}
+              />
+            ))}
+
             {/* launch pad */}
             <span
+              aria-hidden="true"
               className="absolute"
               style={{
                 left: "50%",
@@ -1521,11 +1678,13 @@ function Home({ onDaily, onCustom, onEscape, escapeBest = 0, stats, dailyDone, o
                 borderRadius: 4,
                 background: `linear-gradient(90deg, transparent, ${C.edge}, transparent)`,
                 boxShadow:
-                  rocketPhase === "ignition" || rocketPhase === "flying"
+                  phase === "ignition" || phase === "ascent"
                     ? `0 0 40px ${C.abort}, 0 0 80px ${C.ion}55`
+                    : arms === "clamped"
+                    ? `0 0 30px ${C.ion}66`
                     : `0 0 14px ${C.ion}33`,
                 transition: "box-shadow .3s ease",
-                animation: rocketPhase === "ignition" ? "padBloom .5s ease-in-out infinite" : "none",
+                animation: phase === "ignition" ? "padBloom .5s ease-in-out infinite" : "none",
               }}
             />
           </button>
@@ -3293,19 +3452,15 @@ export default function OrbitTrivia() {
       /* ---- home launch sequence ----
          Spread is driven by --spread / --spread2 so the throw distance can be
          tuned from the LAUNCH block in JS without touching these rules. */
-      @keyframes extremeLaunch {
-        0%   { transform: translateY(0) scale(1); }
-        6%   { transform: translateY(5px) scale(.98); }
-        24%  { transform: translateY(-13vh) scale(1); }
-        58%  { transform: translateY(-68vh) scale(.86); }
-        100% { transform: translateY(-170vh) scale(.62); }
+      @keyframes crackIn {
+        0%   { opacity: 0; }
+        100% { opacity: .85; }
       }
-      @keyframes boostBack {
-        0%   { transform: translateY(-150vh) scale(.55); opacity: 0; }
-        22%  { opacity: 1; }
-        70%  { transform: translateY(8px) scale(1.02);   opacity: 1; }
-        86%  { transform: translateY(-3px) scale(1); }
-        100% { transform: translateY(0) scale(1);        opacity: 1; }
+      @keyframes crackFlare {
+        0%   { opacity: .85; }
+        55%  { opacity: 1; }
+        72%  { opacity: 1; }
+        100% { opacity: 0; }
       }
       @keyframes padBloom {
         0%, 100% { transform: scaleX(1);    opacity: .8; }
