@@ -58,6 +58,59 @@ async function loadJSON(key, fallback) {
 async function saveJSON(key, value) {
   try { await window.storage.set(key, JSON.stringify(value)); } catch (e) { /* session only */ }
 }
+async function loadRaw(key) {
+  try {
+    const v = await window.storage.get(key);
+    return v?.value ?? null;
+  } catch (e) {
+    return null;
+  }
+}
+async function saveRaw(key, value) {
+  try { await window.storage.set(key, String(value)); } catch (e) { /* session only */ }
+}
+
+/* Progress is stored per corridor, so driving US-19 and driving the
+   Space Coast keep separate queues, scores and answered lists. */
+const tripKey = (corridorId) => `orbit:geo:trip:${corridorId}`;
+const seenKey = (corridorId) => `orbit:geo:seen:${corridorId}`;
+
+/* ------------------------------------------------------------
+   Before corridors existed there was only one road, and its progress
+   lived at the un-suffixed keys. Anyone who has already played has
+   their Nature Coast history there.
+
+   So: the first time we look for a corridor's progress and find
+   nothing, fall back to the old key and copy it across. Skipping this
+   would silently mark every place they had answered as unanswered
+   again — no error, no warning, just lost progress.
+
+   Only the Nature Coast can have old-format data; it was the only
+   corridor that ever existed.
+   ------------------------------------------------------------ */
+async function loadCorridorProgress(corridorId) {
+  const isLegacyCorridor = corridorId === "nature-coast";
+
+  let trip = await loadJSON(tripKey(corridorId), null);
+  let seen = await loadJSON(seenKey(corridorId), null);
+
+  if (isLegacyCorridor && trip === null && seen === null) {
+    const oldTrip = await loadRaw("orbit:geo:trip");
+    const oldSeen = await loadRaw("orbit:geo:seen");
+    if (oldTrip !== null || oldSeen !== null) {
+      trip = await loadJSON("orbit:geo:trip", null);
+      seen = await loadJSON("orbit:geo:seen", null);
+      /* Write it forward so this only ever happens once. The old keys
+         are left alone rather than deleted — they cost nothing, and
+         keeping them means an older build of the app still works if
+         someone ends up back on one. */
+      if (trip !== null) await saveJSON(tripKey(corridorId), trip);
+      if (seen !== null) await saveJSON(seenKey(corridorId), seen);
+    }
+  }
+
+  return { trip, seen: seen ?? [] };
+}
 
 export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, geoBest = 0 }) {
   const C = useC();
@@ -96,35 +149,43 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
     }
   }, []);
 
-  /* ---------- load saved progress ---------- */
+  /* ---------- load saved progress for whichever corridor is active ----------
+     This re-runs on every corridor switch, which is what keeps the two
+     roads' progress genuinely separate. `loaded` drops to false first so
+     the save effect below can't fire with one corridor's state under
+     another corridor's key. */
   useEffect(() => {
     let cancelled = false;
+    setLoaded(false);
     (async () => {
-      const trip = await loadJSON("orbit:geo:trip", null);
-      const seenIds = await loadJSON("orbit:geo:seen", []);
+      const lastCorridor = await loadRaw("orbit:geo:corridor");
+      const { trip, seen: seenIds } = await loadCorridorProgress(corridorId);
       if (cancelled) return;
-      if (trip) {
-        setQueue(Array.isArray(trip.queue) ? trip.queue : []);
-        setAnswered(trip.answered && typeof trip.answered === "object" ? trip.answered : {});
-        setSkipped(Array.isArray(trip.skipped) ? trip.skipped : []);
-        setPoints(Number(trip.points) || 0);
-      }
+
+      setQueue(trip && Array.isArray(trip.queue) ? trip.queue : []);
+      setAnswered(trip && trip.answered && typeof trip.answered === "object" ? trip.answered : {});
+      setSkipped(trip && Array.isArray(trip.skipped) ? trip.skipped : []);
+      setPoints(trip ? Number(trip.points) || 0 : 0);
       setSeen(Array.isArray(seenIds) ? seenIds : []);
+
+      /* Remember which road they were last on, so returning players go
+         straight back to it. */
+      if (lastCorridor !== corridorId) saveRaw("orbit:geo:corridor", corridorId);
       setLoaded(true);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [corridorId]);
 
   /* ---------- save progress, but not on every keystroke ---------- */
   useEffect(() => {
     if (!loaded) return;
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      saveJSON("orbit:geo:trip", { queue, answered, skipped, points, startedAt: Date.now() });
-      saveJSON("orbit:geo:seen", seen);
+      saveJSON(tripKey(corridorId), { queue, answered, skipped, points, startedAt: Date.now() });
+      saveJSON(seenKey(corridorId), seen);
     }, SAVE_DEBOUNCE_MS);
     return () => clearTimeout(saveTimerRef.current);
-  }, [loaded, queue, answered, skipped, points, seen]);
+  }, [loaded, corridorId, queue, answered, skipped, points, seen]);
 
   /* ---------- if location was already granted, don't re-explain ---------- */
   useEffect(() => {
@@ -267,9 +328,9 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
     setPoints(0);
     recentArrivalsRef.current = [];
     resetInside();
-    await saveJSON("orbit:geo:seen", []);
-    await saveJSON("orbit:geo:trip", { queue: [], answered: {}, skipped: [], points: 0 });
-  }, [resetInside]);
+    await saveJSON(seenKey(corridorId), []);
+    await saveJSON(tripKey(corridorId), { queue: [], answered: {}, skipped: [], points: 0 });
+  }, [resetInside, corridorId]);
 
   const answeredIds = useMemo(() => Object.keys(answered), [answered]);
   const correctCount = useMemo(
