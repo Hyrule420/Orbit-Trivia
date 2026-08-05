@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
-import { Rocket, Play, Users, Trophy, X, Pause, ChevronRight, Check, Share2, Share, Flame, Target, AlertTriangle, Repeat, User, Volume2, VolumeX } from "lucide-react";
+import { Rocket, Play, Users, Trophy, X, Pause, ChevronRight, Check, Share2, Share, Flame, Target, AlertTriangle, Repeat, User, Volume2, VolumeX, MapPin, Navigation, Lock } from "lucide-react";
 
 /* ============================================================
    PERSISTENCE
@@ -1196,23 +1196,567 @@ function InstallHint({ onDismiss, androidPrompt }) {
   );
 }
 
-function Home({ onDaily, onCustom, onEscape, escapeBest = 0, stats, dailyDone, onSwapTheme, themeName, profile, dayStreak, onOpenProfile, streakMilestone, onDismissMilestone, soundOn, onToggleSound, showInstall, onDismissInstall, androidPrompt }) {
+/* ============================================================
+   ROAD TRIP FLORIDA — US-19 Nature Coast
+   Twelve real stops between Tarpon Springs and Perry. A question
+   unlocks when the phone is within GEO_UNLOCK_MI of a stop, so the
+   route plays itself as the car moves. Coordinates are town-centre
+   approximations — nudge them if a stop fires early or late.
+   ============================================================ */
+const GEO_UNLOCK_MI = 5;
+const GEO_POINTS = 100;
+
+const GEO_STOPS = [
+  {
+    id: "tarpon", name: "Tarpon Springs", blurb: "Sponge Docks", lat: 28.1611, lng: -82.7568,
+    q: "Tarpon Springs was built by Greek divers harvesting what off the Gulf floor?",
+    o: ["Sponges", "Oysters", "Coral", "Sea salt"], a: "Sponges",
+  },
+  {
+    id: "npr", name: "New Port Richey", blurb: "The Cotee River", lat: 28.2442, lng: -82.7193,
+    q: "Locals shorten the river through town to \u201cthe Cotee.\u201d What's its full name?",
+    o: ["Pithlachascotee", "Chassahowitzka", "Withlacoochee", "Anclote"], a: "Pithlachascotee",
+  },
+  {
+    id: "hudson", name: "Hudson", blurb: "Gulf marshes", lat: 28.3644, lng: -82.6934,
+    q: "What does the Nature Coast almost entirely lack, unlike the rest of Florida's Gulf shore?",
+    o: ["Sandy barrier-island beaches", "Fishing piers", "State parks", "Boat ramps"], a: "Sandy barrier-island beaches",
+  },
+  {
+    id: "weeki", name: "Weeki Wachee Springs", blurb: "Underwater theater", lat: 28.5164, lng: -82.5734,
+    q: "Weeki Wachee has run the same underwater show since 1947. What is it?",
+    o: ["Live mermaids", "Dolphin tricks", "Glass-bottom boats", "Water-ski pyramids"], a: "Live mermaids",
+  },
+  {
+    id: "homosassa", name: "Homosassa Springs", blurb: "Wildlife state park", lat: 28.8003, lng: -82.5751,
+    q: "Lu, the park's hippo, was granted what in 1991 so he could stay?",
+    o: ["Honorary Florida citizenship", "A federal permit", "A movie contract", "Endangered status"], a: "Honorary Florida citizenship",
+  },
+  {
+    id: "crystal", name: "Crystal River", blurb: "King's Bay", lat: 28.8862, lng: -82.5926,
+    q: "Crystal River is the only place in the country where you can legally do what?",
+    o: ["Swim with wild manatees", "Feed wild alligators", "Dive for sponges", "Net wild tarpon"], a: "Swim with wild manatees",
+  },
+  {
+    id: "inglis", name: "Inglis", blurb: "Barge canal lock", lat: 29.0272, lng: -82.6634,
+    q: "The half-dug canal beside Inglis was meant to cut across Florida for what?",
+    o: ["Barge traffic", "Drinking water", "Flood control", "Rocket transport"], a: "Barge traffic",
+  },
+  {
+    id: "chiefland", name: "Chiefland", blurb: "Manatee Springs", lat: 29.4747, lng: -82.8595,
+    q: "Manatee Springs, just west of town, empties into which river?",
+    o: ["Suwannee", "Withlacoochee", "St. Johns", "Apalachicola"], a: "Suwannee",
+  },
+  {
+    id: "fanning", name: "Fanning Springs", blurb: "Nature Coast State Trail", lat: 29.5877, lng: -82.9346,
+    q: "The Nature Coast State Trail crosses the Suwannee here on what?",
+    o: ["An old railroad bridge", "A floating pontoon", "A cable ferry", "The highway shoulder"], a: "An old railroad bridge",
+  },
+  {
+    id: "crosscity", name: "Cross City", blurb: "County seat", lat: 29.6353, lng: -83.1249,
+    q: "Cross City is the county seat of which county?",
+    o: ["Dixie", "Levy", "Taylor", "Gilchrist"], a: "Dixie",
+  },
+  {
+    id: "steinhatchee", name: "Steinhatchee", blurb: "Scallop grounds", lat: 29.6716, lng: -83.3885,
+    q: "Boats pack Steinhatchee every summer to hand-harvest what?",
+    o: ["Bay scallops", "Blue crab", "Stone crab", "Spiny lobster"], a: "Bay scallops",
+  },
+  {
+    id: "perry", name: "Perry", blurb: "Tree Capital of the South", lat: 30.1174, lng: -83.5827,
+    q: "Perry's Florida Forest Festival claims the world's largest free what?",
+    o: ["Fish fry", "Barbecue", "Pancake breakfast", "Oyster roast"], a: "Fish fry",
+  },
+];
+
+/* Haversine, in miles. Good enough at these distances. */
+const milesBetween = (lat1, lon1, lat2, lon2) => {
+  const R = 3958.8;
+  const rad = Math.PI / 180;
+  const dLat = (lat2 - lat1) * rad;
+  const dLon = (lon2 - lon1) * rad;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+};
+
+const fmtMi = (mi) => (mi < 10 ? mi.toFixed(1) : Math.round(mi).toString());
+
+function GeoTrip({ best = 0, onExit, onFinish }) {
+  const C = useC();
+  const [fix, setFix] = useState(null);
+  const [gps, setGps] = useState("locking"); // locking | live | denied | unsupported | preview
+  const [answers, setAnswers] = useState({}); // id -> true | false
+  const [active, setActive] = useState(null); // stop id
+  const [picked, setPicked] = useState(null);
+  const watchId = useRef(null);
+  const closeTimer = useRef(null);
+
+  const preview = gps === "preview";
+
+  useEffect(() => () => clearTimeout(closeTimer.current), []);
+
+  useEffect(() => {
+    if (preview) return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setGps("unsupported");
+      return;
+    }
+    watchId.current = navigator.geolocation.watchPosition(
+      (p) => {
+        setFix({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy });
+        setGps("live");
+      },
+      (err) => setGps(err.code === 1 ? "denied" : "unsupported"),
+      { enableHighAccuracy: true, maximumAge: 15000, timeout: 25000 }
+    );
+    const id = watchId.current;
+    return () => { if (id != null) navigator.geolocation.clearWatch(id); };
+  }, [preview]);
+
+  const done = Object.keys(answers).length;
+  const hits = Object.values(answers).filter(Boolean).length;
+  const score = hits * GEO_POINTS;
+  const finished = done === GEO_STOPS.length;
+
+  const withDist = GEO_STOPS.map((s) => ({
+    ...s,
+    dist: fix ? milesBetween(fix.lat, fix.lng, s.lat, s.lng) : null,
+  }));
+  const nextUp = withDist
+    .filter((s) => answers[s.id] === undefined)
+    .sort((a, b) => (a.dist ?? 1e9) - (b.dist ?? 1e9))[0];
+
+  /* Proximity unlock — the only trigger in live mode. */
+  useEffect(() => {
+    if (!fix || active || finished) return;
+    const hit = withDist
+      .filter((s) => answers[s.id] === undefined && s.dist !== null && s.dist <= GEO_UNLOCK_MI)
+      .sort((a, b) => a.dist - b.dist)[0];
+    if (hit) {
+      SFX.whoosh();
+      buzz([20, 45, 20]);
+      setActive(hit.id);
+    }
+  }, [fix, active, finished, answers]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const stop = active ? GEO_STOPS.find((s) => s.id === active) : null;
+
+  const answer = (opt) => {
+    if (picked || !stop) return;
+    const right = opt === stop.a;
+    setPicked(opt);
+    if (right) { SFX.correct(); buzz(30); }
+    else { SFX.wrong(false); buzz([40, 60, 40]); }
+    closeTimer.current = setTimeout(() => {
+      setAnswers((a) => ({ ...a, [stop.id]: right }));
+      setPicked(null);
+      setActive(null);
+    }, 1800);
+  };
+
+  return (
+    <div className="relative min-h-screen p-5 flex flex-col" style={{ background: C.void }}>
+      <Starfield comets={false} />
+
+      <div className="relative z-10 flex flex-col flex-1 max-w-md w-full mx-auto">
+        <div className="flex items-center justify-between pt-3 pb-4">
+          <button
+            onClick={onExit}
+            aria-label="Leave the trip"
+            className="flex items-center justify-center rounded-xl active:scale-90"
+            style={{ width: 36, height: 34, background: C.hullLight, border: `1px solid ${C.edge}` }}
+          >
+            <X size={15} style={{ color: C.dim }} />
+          </button>
+          <div className="text-center">
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: C.thrust, letterSpacing: "0.2em" }}>
+              US-19 NATURE COAST
+            </div>
+            <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 17, color: C.star }}>
+              Road Trip Florida
+            </div>
+          </div>
+          <div
+            className="flex items-center justify-center rounded-xl px-2"
+            style={{ minWidth: 46, height: 34, background: `${C.thrust}18`, border: `1px solid ${C.thrust}55` }}
+          >
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 13, color: C.thrust }}>
+              {score}
+            </span>
+          </div>
+        </div>
+
+        {/* ---- signal / status ---- */}
+        {!finished && (
+          <Panel className="p-4 mb-3" style={{ borderColor: gps === "live" ? `${C.thrust}55` : C.edge }}>
+            {gps === "locking" && (
+              <div className="flex items-center gap-3">
+                <span className="relative flex items-center justify-center" style={{ width: 26, height: 26 }}>
+                  <span
+                    className="absolute rounded-full"
+                    style={{ width: 26, height: 26, background: `${C.ion}44`, animation: "radar 1.8s ease-out infinite" }}
+                  />
+                  <Navigation size={15} style={{ color: C.ion }} />
+                </span>
+                <div className="flex-1">
+                  <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 600, fontSize: 14, color: C.star }}>
+                    Finding you on the highway
+                  </div>
+                  <div className="text-xs" style={{ color: C.dim }}>Allow location to let stops unlock as you pass them.</div>
+                </div>
+              </div>
+            )}
+
+            {(gps === "denied" || gps === "unsupported") && (
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertTriangle size={15} style={{ color: C.abort }} />
+                  <span style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 600, fontSize: 14, color: C.star }}>
+                    {gps === "denied" ? "Location is switched off" : "No location on this device"}
+                  </span>
+                </div>
+                <p className="text-xs mb-3" style={{ color: C.dim, lineHeight: 1.6 }}>
+                  Stops can't unlock on their own without it. You can still play the route by hand.
+                </p>
+                <Btn full variant="solid" onClick={() => setGps("preview")}>Play it manually</Btn>
+              </div>
+            )}
+
+            {gps === "preview" && (
+              <div className="flex items-center gap-3">
+                <MapPin size={16} style={{ color: C.plasma }} />
+                <div className="flex-1">
+                  <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 600, fontSize: 14, color: C.star }}>
+                    Manual mode
+                  </div>
+                  <div className="text-xs" style={{ color: C.dim }}>Tap any stop to open its question.</div>
+                </div>
+              </div>
+            )}
+
+            {gps === "live" && nextUp && (
+              <div className="flex items-center gap-3">
+                <MapPin size={18} style={{ color: C.thrust, flexShrink: 0 }} />
+                <div className="flex-1 min-w-0">
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: C.dim, letterSpacing: "0.16em" }}>
+                    NEXT STOP
+                  </div>
+                  <div className="truncate" style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 16, color: C.star }}>
+                    {nextUp.name}
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 18, color: C.thrust }}>
+                    {fmtMi(nextUp.dist)}
+                  </div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: C.dim, letterSpacing: "0.14em" }}>
+                    MILES
+                  </div>
+                </div>
+              </div>
+            )}
+          </Panel>
+        )}
+
+        {/* ---- trip summary ---- */}
+        {finished && (
+          <Panel className="p-6 mb-3 text-center" style={{ borderColor: `${C.thrust}66`, boxShadow: `0 0 40px ${C.thrust}22` }}>
+            <div style={{ fontSize: 38, animation: "chargeup .8s ease-out" }}>🛣️</div>
+            <div className="mt-2" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.thrust, letterSpacing: "0.22em" }}>
+              ROUTE COMPLETE
+            </div>
+            <div className="mt-1" style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 34, color: C.star }}>
+              {score} PTS
+            </div>
+            <p className="text-sm mt-2" style={{ color: C.dim }}>
+              {hits} of {GEO_STOPS.length} stops called correctly
+              {score > best ? " — a new best." : best > 0 ? ` · best ${best}` : "."}
+            </p>
+            <div className="mt-5">
+              <Btn full onClick={() => onFinish(score)}>Back to the pad</Btn>
+            </div>
+          </Panel>
+        )}
+
+        {/* ---- the route ---- */}
+        <div className="flex flex-col gap-2 pb-4">
+          {withDist.map((s, i) => {
+            const state = answers[s.id];
+            const near = s.dist !== null && s.dist <= GEO_UNLOCK_MI;
+            const tappable = preview && state === undefined;
+            const accent = state === true ? C.thrust : state === false ? C.abort : near ? C.ion : C.edge;
+            return (
+              <button
+                key={s.id}
+                onClick={tappable ? () => { SFX.ui(); setActive(s.id); } : undefined}
+                className="w-full text-left rounded-xl px-3 py-3 flex items-center gap-3"
+                style={{
+                  background: C.hull,
+                  border: `1px solid ${accent}${state === undefined && !near ? "" : "aa"}`,
+                  opacity: state === undefined ? 1 : 0.62,
+                  cursor: tappable ? "pointer" : "default",
+                  transition: "border-color .3s, opacity .3s",
+                }}
+              >
+                <span
+                  className="flex items-center justify-center rounded-lg flex-shrink-0"
+                  style={{ width: 28, height: 28, background: `${accent}22`, border: `1px solid ${accent}66` }}
+                >
+                  {state === true ? <Check size={14} style={{ color: C.thrust }} />
+                    : state === false ? <X size={14} style={{ color: C.abort }} />
+                    : near ? <MapPin size={14} style={{ color: C.ion }} />
+                    : <Lock size={12} style={{ color: C.dim }} />}
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block truncate" style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 600, fontSize: 14, color: C.star }}>
+                    {i + 1}. {s.name}
+                  </span>
+                  <span className="block truncate" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: C.dim, letterSpacing: "0.12em" }}>
+                    {s.blurb.toUpperCase()}
+                  </span>
+                </span>
+                {s.dist !== null && state === undefined && (
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: near ? C.ion : C.dim }}>
+                    {fmtMi(s.dist)} mi
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {!finished && (
+          <div className="mt-auto pt-2 pb-2">
+            <Btn full variant="ghost" onClick={() => onFinish(score)}>
+              {done > 0 ? `End trip · ${score} pts` : "End trip"}
+            </Btn>
+          </div>
+        )}
+      </div>
+
+      {/* ---- question ---- */}
+      {stop && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" style={{ background: "#000000dd", backdropFilter: "blur(4px)" }}>
+          <Panel className="p-5 w-full" style={{ maxWidth: 400, borderColor: `${C.thrust}66`, animation: "verdictIn .35s cubic-bezier(.2,.9,.3,1)" }}>
+            <div className="flex items-center gap-2 mb-3">
+              <span style={{ animation: "pinPulse .5s ease-out both" }}>
+                <MapPin size={16} style={{ color: C.thrust }} />
+              </span>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.thrust, letterSpacing: "0.18em" }}>
+                {stop.name.toUpperCase()}
+              </span>
+            </div>
+
+            <div className="mb-4" style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 19, color: C.star, lineHeight: 1.35 }}>
+              {stop.q}
+            </div>
+
+            <div className="flex flex-col gap-2">
+              {stop.o.map((opt) => {
+                const isRight = opt === stop.a;
+                const chosen = picked === opt;
+                const reveal = picked !== null;
+                const bg = reveal && isRight ? `${C.thrust}22` : reveal && chosen ? `${C.abort}22` : C.hullLight;
+                const bd = reveal && isRight ? C.thrust : reveal && chosen ? C.abort : C.edge;
+                return (
+                  <button
+                    key={opt}
+                    onClick={() => answer(opt)}
+                    disabled={reveal}
+                    className="w-full text-left px-4 py-3 rounded-xl active:scale-95"
+                    style={{
+                      background: bg,
+                      border: `1px solid ${bd}`,
+                      color: C.star,
+                      fontFamily: "'Inter', system-ui, sans-serif",
+                      fontSize: 14,
+                      transition: "background .25s, border-color .25s, transform .12s",
+                    }}
+                  >
+                    {opt}
+                  </button>
+                );
+              })}
+            </div>
+
+            {picked !== null && (
+              <div className="text-center mt-4" style={{ animation: "verdictIn .3s ease-out both" }}>
+                <span
+                  style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 11,
+                    letterSpacing: "0.2em",
+                    color: picked === stop.a ? C.thrust : C.abort,
+                  }}
+                >
+                  {picked === stop.a ? `+${GEO_POINTS} PTS` : `IT WAS ${stop.a.toUpperCase()}`}
+                </span>
+              </div>
+            )}
+          </Panel>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Home({ onDaily, onCustom, onEscape, onGeoTrip, geoBest = 0, escapeBest = 0, stats, dailyDone, onSwapTheme, themeName, profile, dayStreak, onOpenProfile, streakMilestone, onDismissMilestone, soundOn, onToggleSound, showInstall, onDismissInstall, androidPrompt }) {
   const C = useC();
   const named = (profile.name || "").trim();
-  const [rocketPhase, setRocketPhase] = useState("idle");
+  const [rocketPhase, setRocketPhase] = useState("idle"); // idle | ignition | flying | zeroG | returning
+  const timers = useRef([]);
+
+  /* Unmounting mid-launch (a card tap, a route change) must not leave
+     stray timeouts firing setState on a dead component. */
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+
   const tapRocket = () => {
     if (rocketPhase !== "idle") return;
-    buzz([15, 40, 15, 40, 60]);
-    SFX.liftoff(false);
-    setRocketPhase("flying");
-    setTimeout(() => SFX.whoosh(), 1700);
-    setTimeout(() => setRocketPhase("returning"), 1700);
-    setTimeout(() => setRocketPhase("idle"), 2350);
+    timers.current.forEach(clearTimeout);
+    timers.current = [];
+    const at = (ms, fn) => timers.current.push(setTimeout(fn, ms));
+
+    // 1 — ignition: hold-down, pad glow, engines spooling
+    buzz([20, 30, 20, 40, 80]);
+    SFX.engineUp(0.55);
+    setRocketPhase("ignition");
+
+    // 2 — release: the cards go with it
+    at(650, () => {
+      SFX.engineOff(0.08);
+      SFX.liftoff(true);
+      buzz([40, 30, 90]);
+      setRocketPhase("flying");
+    });
+
+    // 3 — coast: debris hangs in zero-g
+    at(2100, () => {
+      SFX.whoosh();
+      setRocketPhase("zeroG");
+    });
+
+    // 4 — boost-back and landing
+    at(3400, () => setRocketPhase("returning"));
+    at(4850, () => setRocketPhase("idle"));
   };
+
+  const launching = rocketPhase !== "idle";
+  const broken = rocketPhase === "flying" || rocketPhase === "zeroG" || rocketPhase === "returning";
+
   const milestoneLabel =
     streakMilestone === 7 ? "ONE WEEK STRONG" : streakMilestone === 30 ? "ONE MONTH STRONG" : streakMilestone === 100 ? "CENTURION" : null;
+
+  const modes = [
+    {
+      key: "daily",
+      onTap: onDaily,
+      hit: 0.95,
+      card: (
+        <Panel className="p-5" style={{ borderColor: dailyDone ? C.edge : `${C.ion}66`, boxShadow: dailyDone ? "none" : `0 0 30px ${C.ion}18` }}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <Target size={16} style={{ color: C.ion }} />
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.ion, letterSpacing: "0.18em" }}>
+                  {dailyDone ? "COMPLETE" : "TODAY ONLY"}
+                </span>
+              </div>
+              <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, color: C.star }}>
+                Daily Challenge
+              </div>
+              <div className="text-sm mt-1" style={{ color: C.dim }}>
+                Ten questions. Same ten for everyone today.
+              </div>
+            </div>
+            <ChevronRight size={20} style={{ color: C.dim, marginTop: 20 }} />
+          </div>
+        </Panel>
+      ),
+    },
+    {
+      key: "road",
+      onTap: onCustom,
+      hit: 0.75,
+      card: (
+        <Panel className="p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <Users size={16} style={{ color: C.plasma }} />
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.plasma, letterSpacing: "0.18em" }}>
+                  PASS AND PLAY
+                </span>
+              </div>
+              <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, color: C.star }}>
+                Crew Mode
+              </div>
+              <div className="text-sm mt-1" style={{ color: C.dim }}>
+                Everyone in the car takes a turn. You set the rules.
+              </div>
+            </div>
+            <ChevronRight size={20} style={{ color: C.dim, marginTop: 20 }} />
+          </div>
+        </Panel>
+      ),
+    },
+    {
+      key: "escape",
+      onTap: onEscape,
+      hit: 0.58,
+      card: (
+        <Panel className="p-5" style={{ borderColor: `${C.abort}44` }}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <Flame size={16} style={{ color: C.abort }} />
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.abort, letterSpacing: "0.18em" }}>
+                  {escapeBest > 0 ? `BEST ${escapeBest.toFixed(1)} KM/S` : "ONE MISS ENDS IT"}
+                </span>
+              </div>
+              <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, color: C.star }}>
+                Escape Velocity
+              </div>
+              <div className="text-sm mt-1" style={{ color: C.dim }}>
+                Keep answering, keep accelerating. Reach 11.2 km/s to break free.
+              </div>
+            </div>
+            <ChevronRight size={20} style={{ color: C.dim, marginTop: 20 }} />
+          </div>
+        </Panel>
+      ),
+    },
+    {
+      key: "geotrip",
+      onTap: onGeoTrip,
+      hit: 0.42,
+      card: (
+        <Panel className="p-5" style={{ borderColor: `${C.thrust}44` }}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <MapPin size={16} style={{ color: C.thrust }} />
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.thrust, letterSpacing: "0.18em" }}>
+                  {geoBest > 0 ? `BEST ${geoBest} PTS` : "NATURE COAST"}
+                </span>
+              </div>
+              <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, color: C.star }}>
+                Road Trip Florida
+              </div>
+              <div className="text-sm mt-1" style={{ color: C.dim }}>
+                Questions unlock as you drive past real places on US-19.
+              </div>
+            </div>
+            <ChevronRight size={20} style={{ color: C.dim, marginTop: 20 }} />
+          </div>
+        </Panel>
+      ),
+    },
+  ];
+
   return (
-    <div className="relative min-h-screen p-6 flex flex-col" style={{ background: C.void }}>
+    <div className="relative min-h-screen p-6 flex flex-col" style={{ background: C.void, overflowX: "hidden" }}>
       <Starfield />
       <div className="relative z-10 flex flex-col flex-1 max-w-md w-full mx-auto">
         <div className="pt-4 pb-4 flex items-center justify-between">
@@ -1247,7 +1791,7 @@ function Home({ onDaily, onCustom, onEscape, escapeBest = 0, stats, dailyDone, o
           </div>
         </div>
 
-        <div className="flex items-center gap-2 pb-6">
+        <div className="flex items-center gap-2 pb-5">
           <button
             onClick={onOpenProfile}
             className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl active:scale-95"
@@ -1284,120 +1828,48 @@ function Home({ onDaily, onCustom, onEscape, escapeBest = 0, stats, dailyDone, o
         </div>
 
         <div className="flex flex-col gap-3">
-          {[
-            {
-              key: "daily",
-              onTap: onDaily,
-              hit: 0.95,
-              card: (
-                <Panel className="p-5" style={{ borderColor: dailyDone ? C.edge : `${C.ion}66`, boxShadow: dailyDone ? "none" : `0 0 30px ${C.ion}18` }}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Target size={16} style={{ color: C.ion }} />
-                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.ion, letterSpacing: "0.18em" }}>
-                          {dailyDone ? "COMPLETE" : "TODAY ONLY"}
-                        </span>
-                      </div>
-                      <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, color: C.star }}>
-                        Daily Challenge
-                      </div>
-                      <div className="text-sm mt-1" style={{ color: C.dim }}>
-                        Ten questions. Same ten for everyone today.
-                      </div>
-                    </div>
-                    <ChevronRight size={20} style={{ color: C.dim, marginTop: 20 }} />
-                  </div>
-                </Panel>
-              ),
-            },
-            {
-              key: "road",
-              onTap: onCustom,
-              hit: 0.75,
-              card: (
-                <Panel className="p-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Users size={16} style={{ color: C.plasma }} />
-                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.plasma, letterSpacing: "0.18em" }}>
-                          PASS AND PLAY
-                        </span>
-                      </div>
-                      <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, color: C.star }}>
-                        Road Trip Mode
-                      </div>
-                      <div className="text-sm mt-1" style={{ color: C.dim }}>
-                        Everyone in the car takes a turn. You set the rules.
-                      </div>
-                    </div>
-                    <ChevronRight size={20} style={{ color: C.dim, marginTop: 20 }} />
-                  </div>
-                </Panel>
-              ),
-            },
-            {
-              key: "escape",
-              onTap: onEscape,
-              hit: 0.58,
-              card: (
-                <Panel className="p-5" style={{ borderColor: `${C.abort}44` }}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Flame size={16} style={{ color: C.abort }} />
-                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.abort, letterSpacing: "0.18em" }}>
-                          {escapeBest > 0 ? `BEST ${escapeBest.toFixed(1)} KM/S` : "ONE MISS ENDS IT"}
-                        </span>
-                      </div>
-                      <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, color: C.star }}>
-                        Escape Velocity
-                      </div>
-                      <div className="text-sm mt-1" style={{ color: C.dim }}>
-                        Keep answering, keep accelerating. Reach 11.2 km/s to break free.
-                      </div>
-                    </div>
-                    <ChevronRight size={20} style={{ color: C.dim, marginTop: 20 }} />
-                  </div>
-                </Panel>
-              ),
-            },
-          ].map(({ key, onTap, hit, card }) => (
+          {modes.map(({ key, onTap, hit, card }) => (
             <div key={key} className="relative">
-              {/* the real, tappable card — hides at the moment of impact */}
               <button
                 onClick={onTap}
+                tabIndex={launching ? -1 : 0}
+                aria-hidden={broken}
                 className="text-left active:scale-95 w-full block"
                 style={{
                   transition: "transform .12s",
+                  /* an opacity-0 card is still tappable, so the pointer has to
+                     go with it — otherwise you can launch a run mid-flight */
+                  pointerEvents: launching ? "none" : "auto",
                   animation:
-                    rocketPhase === "flying"
-                      ? `cardvanish .01s linear ${hit}s both`
+                    rocketPhase === "flying" || rocketPhase === "zeroG"
+                      ? `cardvanish 0.01s linear ${hit * 0.32}s both`
                       : rocketPhase === "returning"
-                      ? "cardreturn .01s linear .5s both"
+                      ? "cardreturn 0.01s linear 0.9s both"
                       : "none",
                 }}
               >
                 {card}
               </button>
 
-              {/* the same card as four shards — separate on impact, weld back on return */}
-              {(rocketPhase === "flying" || rocketPhase === "returning") &&
+              {broken &&
                 CARD_SHARDS.map((sh, i) => (
                   <div
                     key={i}
+                    aria-hidden="true"
                     className="absolute inset-0 pointer-events-none"
                     style={{
                       clipPath: sh.clip,
                       WebkitClipPath: sh.clip,
+                      willChange: "transform, opacity",
                       "--sx": sh.x,
                       "--sy": sh.y,
                       "--sr": sh.r,
                       animation:
                         rocketPhase === "flying"
-                          ? `shatter .55s cubic-bezier(.2,.8,.2,1) ${hit}s both`
-                          : "reassemble .5s cubic-bezier(.2,.8,.2,1) both",
+                          ? `extremeShatter 0.75s cubic-bezier(.15,.85,.25,1) ${hit * 0.32}s both`
+                          : rocketPhase === "zeroG"
+                          ? `zeroFloat 2.6s ease-in-out ${hit * 0.2}s infinite both`
+                          : "hardSnap 0.65s cubic-bezier(.2,.9,.3,1) 0.35s both",
                     }}
                   >
                     {card}
@@ -1407,65 +1879,80 @@ function Home({ onDaily, onCustom, onEscape, escapeBest = 0, stats, dailyDone, o
           ))}
         </div>
 
-        <div className="flex-1 flex items-end justify-center pb-2" style={{ minHeight: 150 }}>
+        {/* ===== LAUNCH PAD ===== */}
+        <div className="flex-1 flex items-end justify-center" style={{ minHeight: 132 }}>
           <button
             onClick={tapRocket}
             aria-label="Launch the rocket"
             className="relative active:scale-95"
-            style={{ background: "transparent", border: "none", cursor: "pointer", padding: "20px 40px 28px", transition: "transform .12s ease" }}
+            style={{ background: "transparent", border: "none", cursor: "pointer", padding: "20px 48px 28px" }}
           >
             <span
               style={{
                 position: "relative",
                 display: "inline-block",
                 animation:
-                  rocketPhase === "flying"
-                    ? "miniLaunch 1.9s cubic-bezier(.5,.02,.85,.4) both"
+                  rocketPhase === "flying" || rocketPhase === "zeroG"
+                    ? "extremeLaunch 2.15s cubic-bezier(.45,.02,.85,.35) both"
                     : rocketPhase === "returning"
-                    ? "miniReturn .6s cubic-bezier(.2,.8,.2,1) both"
+                    ? "boostBack 1.15s cubic-bezier(.2,.85,.3,1) both"
+                    : rocketPhase === "ignition"
+                    ? "padshake 0.09s linear infinite"
                     : "drift 4.5s ease-in-out infinite",
               }}
             >
               <Rocket
                 size={96}
-                style={{ color: C.star, transform: "rotate(-45deg)", filter: `drop-shadow(0 0 28px ${C.ion})` }}
+                style={{
+                  color: C.star,
+                  transform: "rotate(-45deg)",
+                  filter: `drop-shadow(0 0 ${rocketPhase === "ignition" || rocketPhase === "flying" ? 44 : 28}px ${C.ion})`,
+                  transition: "filter 0.3s",
+                }}
               />
-              {rocketPhase === "flying" && (
+              {(rocketPhase === "ignition" || rocketPhase === "flying" || rocketPhase === "returning") && (
                 <span
+                  aria-hidden="true"
                   style={{
                     position: "absolute",
                     left: "50%",
-                    top: 76,
-                    marginLeft: -13,
-                    width: 26,
-                    height: 96,
-                    background: `linear-gradient(180deg, #FFFFFF 0%, ${C.ion} 24%, ${C.abort} 58%, transparent 100%)`,
-                    filter: "blur(6px)",
-                    borderRadius: "50% 50% 50% 50% / 22% 22% 78% 78%",
-                    animation: "plume .14s ease-in-out infinite alternate",
+                    top: 78,
+                    marginLeft: -19,
+                    width: 38,
+                    height: rocketPhase === "ignition" ? 64 : 128,
+                    background: `linear-gradient(180deg, #FFFFFF 0%, ${C.ion} 18%, ${C.abort} 52%, transparent 100%)`,
+                    filter: "blur(8px)",
+                    borderRadius: "50% 50% 50% 50% / 20% 20% 80% 80%",
+                    animation: "plume 0.12s ease-in-out infinite alternate",
+                    transition: "height 0.4s ease",
                   }}
                 />
               )}
             </span>
-            {/* launch pad */}
+
             <span
+              aria-hidden="true"
               className="absolute"
               style={{
                 left: "50%",
                 bottom: 10,
-                marginLeft: -46,
-                width: 92,
-                height: 5,
+                marginLeft: -58,
+                width: 116,
+                height: 6,
                 borderRadius: 4,
                 background: `linear-gradient(90deg, transparent, ${C.edge}, transparent)`,
-                boxShadow: rocketPhase === "flying" ? `0 0 34px ${C.abort}` : `0 0 14px ${C.ion}33`,
-                transition: "box-shadow .3s ease",
+                boxShadow:
+                  rocketPhase === "ignition" || rocketPhase === "flying"
+                    ? `0 0 55px ${C.abort}, 0 0 100px ${C.ion}`
+                    : `0 0 16px ${C.ion}44`,
+                transition: "box-shadow 0.35s ease",
+                animation: rocketPhase === "ignition" ? "padBloom 0.5s ease-in-out infinite" : "none",
               }}
             />
           </button>
         </div>
 
-        <div className="mt-auto pt-8">
+        <div className="mt-auto pt-6">
           {showInstall && <InstallHint onDismiss={onDismissInstall} androidPrompt={androidPrompt} />}
           <Panel className="p-4">
             <div className="flex items-center justify-around">
@@ -2886,6 +3373,7 @@ export default function OrbitTrivia() {
   const [streakMilestone, setStreakMilestone] = useState(null);
   const [soundOn, setSoundOn] = useState(true);
   const [escapeBest, setEscapeBest] = useState(0);
+  const [geoBest, setGeoBest] = useState(0);
   const [installDismissed, setInstallDismissed] = useState(false);
   const [androidEvt, setAndroidEvt] = useState(null);
 
@@ -2985,6 +3473,10 @@ export default function OrbitTrivia() {
         if (ev?.value) setEscapeBest(parseFloat(ev.value) || 0);
       } catch (e) { /* no escape run yet */ }
       try {
+        const gb = await window.storage.get("orbit:geo");
+        if (gb?.value) setGeoBest(parseInt(gb.value, 10) || 0);
+      } catch (e) { /* no road trip yet */ }
+      try {
         const ih = await window.storage.get("orbit:installhint");
         if (ih?.value === "off") setInstallDismissed(true);
       } catch (e) { /* never dismissed */ }
@@ -3029,6 +3521,8 @@ export default function OrbitTrivia() {
       setConfig({ players: [who], timer: 20, sameQ: true, count: 10, pool: QUESTIONS, difficulty: "Mixed", cats: [] });
       setRunKey((k) => k + 1);
       setScreen("game");
+    } else if (pendingMode === "geotrip") {
+      setScreen("geotrip");
     } else if (pendingMode === "escape") {
       const deck = buildEscapeDeck();
       setMode("escape");
@@ -3047,6 +3541,15 @@ export default function OrbitTrivia() {
     setConfig((c) => ({ ...c, count: deck.length, pool: deck }));
     setRunKey((k) => k + 1);
     setScreen("game");
+  };
+
+  const finishGeoTrip = async (score) => {
+    setScreen("home");
+    if (score > geoBest) {
+      setGeoBest(score);
+      try { await window.storage.set("orbit:geo", String(score)); } catch (e) { /* session only */ }
+    }
+    if (score > 0) await saveStats({ ...stats, runs: stats.runs + 1 });
   };
 
   const finish = async (data) => {
@@ -3226,6 +3729,58 @@ export default function OrbitTrivia() {
         35%  { transform: scale(1.035); }
         100% { transform: scale(1); }
       }
+      /* ---- home launch sequence ---------------------------------
+         extremeLaunch  rocket climbs and shrinks out of frame
+         boostBack      it falls back in and settles on the pad
+         padBloom       pad glow breathing during ignition
+         extremeShatter cards blow apart on liftoff
+         zeroFloat      the debris hangs and drifts in zero-g
+         hardSnap       debris slams back into a whole card
+         ----------------------------------------------------------- */
+      @keyframes extremeLaunch {
+        0%   { transform: translateY(0) scale(1); }
+        7%   { transform: translateY(5px) scale(.975); }
+        20%  { transform: translateY(-16vh) scale(1); }
+        55%  { transform: translateY(-88vh) scale(.82); }
+        100% { transform: translateY(-195vh) scale(.55); }
+      }
+      @keyframes boostBack {
+        0%   { transform: translateY(-155vh) scale(.5);  opacity: 0; }
+        18%  { opacity: 1; }
+        68%  { transform: translateY(9px) scale(1.03);   opacity: 1; }
+        84%  { transform: translateY(-4px) scale(1); }
+        100% { transform: translateY(0) scale(1);        opacity: 1; }
+      }
+      @keyframes padBloom {
+        0%, 100% { transform: scaleX(1);    opacity: .8; }
+        50%      { transform: scaleX(1.16); opacity: 1; }
+      }
+      @keyframes extremeShatter {
+        0%   { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 1; filter: brightness(1.55); }
+        12%  { transform: translate(calc(var(--sx) * .6), calc(var(--sy) * .6)) rotate(calc(var(--sr) * 1.2)) scale(1.03); opacity: 1; }
+        60%  { transform: translate(calc(var(--sx) * 4), calc(var(--sy) * 4)) rotate(calc(var(--sr) * 6)) scale(.9); opacity: .5; }
+        100% { transform: translate(calc(var(--sx) * 6), calc(var(--sy) * 6)) rotate(calc(var(--sr) * 9)) scale(.8); opacity: .25; filter: none; }
+      }
+      @keyframes zeroFloat {
+        0%   { transform: translate(calc(var(--sx) * 6),   calc(var(--sy) * 6))   rotate(calc(var(--sr) * 9))    scale(.8);  opacity: .25; }
+        50%  { transform: translate(calc(var(--sx) * 6.7), calc(var(--sy) * 6.4)) rotate(calc(var(--sr) * 10.6)) scale(.77); opacity: .16; }
+        100% { transform: translate(calc(var(--sx) * 6),   calc(var(--sy) * 6))   rotate(calc(var(--sr) * 9))    scale(.8);  opacity: .25; }
+      }
+      @keyframes hardSnap {
+        0%   { transform: translate(calc(var(--sx) * 6), calc(var(--sy) * 6)) rotate(calc(var(--sr) * 9)) scale(.8); opacity: .25; }
+        30%  { opacity: 1; }
+        78%  { transform: translate(0, 0) rotate(0deg) scale(1.025); opacity: 1; filter: brightness(1.7); }
+        100% { transform: translate(0, 0) rotate(0deg) scale(1);     opacity: 1; filter: none; }
+      }
+      @keyframes pinPulse {
+        0%   { transform: scale(.6); opacity: 0; }
+        40%  { transform: scale(1.1); opacity: 1; }
+        100% { transform: scale(1);  opacity: 1; }
+      }
+      @keyframes radar {
+        0%   { transform: scale(.7); opacity: .55; }
+        100% { transform: scale(2.4); opacity: 0; }
+      }
       @media (prefers-reduced-motion: reduce) {
         * { transition-duration: .01ms !important; animation-duration: .01ms !important; }
       }
@@ -3260,6 +3815,8 @@ export default function OrbitTrivia() {
             onDaily={() => { setPendingMode("daily"); setScreen("driving"); }}
             onCustom={() => { setPendingMode("custom"); setScreen("driving"); }}
             onEscape={() => { setPendingMode("escape"); setScreen("driving"); }}
+            onGeoTrip={() => { setPendingMode("geotrip"); setScreen("driving"); }}
+            geoBest={geoBest}
             escapeBest={escapeBest}
             stats={stats}
             dailyDone={dailyDone}
@@ -3288,6 +3845,8 @@ export default function OrbitTrivia() {
               onDaily={() => {}}
               onCustom={() => {}}
               onEscape={() => {}}
+              onGeoTrip={() => {}}
+              geoBest={geoBest}
               escapeBest={escapeBest}
               stats={stats}
               dailyDone={dailyDone}
@@ -3306,6 +3865,14 @@ export default function OrbitTrivia() {
             />
             <DrivingCheck onConfirm={afterDrivingCheck} onCancel={() => setScreen("home")} />
           </>
+        )}
+
+        {screen === "geotrip" && (
+          <GeoTrip
+            best={geoBest}
+            onExit={() => setScreen("home")}
+            onFinish={finishGeoTrip}
+          />
         )}
 
         {screen === "custom" && (
