@@ -64,6 +64,39 @@ export default function GeoQuestionCard({ zone, queueRemaining, onAnswered, onNe
 
   return (
     <div className="min-h-screen max-w-md mx-auto px-4 pt-5 pb-8">
+      <style>{`
+        /* The chosen answer swelling as it lands. */
+        @keyframes gq-hit {
+          0%   { transform: scale(1); }
+          35%  { transform: scale(1.035); }
+          100% { transform: scale(1); }
+        }
+        /* A ring of colour radiating out of it. */
+        @keyframes gq-burst {
+          0%   { transform: scale(.6); opacity: .8; }
+          100% { transform: scale(1.9); opacity: 0; }
+        }
+        /* Sparks thrown up and fading. */
+        @keyframes gq-spark {
+          0%   { transform: translateY(0) scale(1); opacity: 1; }
+          100% { transform: translateY(-46px) scale(.3); opacity: 0; }
+        }
+        /* Wrong: a short shake, over quickly. Not a punishment. */
+        @keyframes gq-wrong {
+          0%,100% { transform: translateX(0); }
+          20%     { transform: translateX(-6px); }
+          45%     { transform: translateX(5px); }
+          70%     { transform: translateX(-3px); }
+        }
+        /* The payoff panel easing up rather than snapping in. */
+        @keyframes gq-reveal {
+          from { transform: translateY(10px); opacity: 0; }
+          to   { transform: translateY(0);    opacity: 1; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .gq-anim { animation: none !important; }
+        }
+      `}</style>
       {/* Where you are */}
       <div className="flex items-center gap-2 mb-1">
         <MapPin size={15} style={{ color: tierColor }} />
@@ -85,38 +118,78 @@ export default function GeoQuestionCard({ zone, queueRemaining, onAnswered, onNe
 
       {/* The four answers */}
       <div className="flex flex-col gap-2">
-        {options.map((opt) => (
-          <button
-            key={opt}
-            onClick={() => choose(opt)}
-            disabled={revealed}
-            className="w-full text-left px-4 py-3 rounded-xl active:scale-95"
-            style={{
-              ...optionStyle(opt),
-              fontFamily: "'Inter', system-ui, sans-serif",
-              fontSize: 15,
-              lineHeight: 1.4,
-              transition: "background .2s ease, border-color .2s ease, opacity .2s ease",
-              cursor: revealed ? "default" : "pointer",
-            }}
-          >
-            <span className="flex items-center justify-between gap-3">
-              <span>{opt}</span>
-              {revealed && opt === zone.a && <Check size={17} style={{ color: C.thrust, flexShrink: 0 }} />}
-              {revealed && opt === picked && opt !== zone.a && <X size={17} style={{ color: C.abort, flexShrink: 0 }} />}
-            </span>
-          </button>
-        ))}
+        {options.map((opt) => {
+          const isChosen = opt === picked;
+          const rightOne = revealed && opt === zone.a;
+          /* Celebrate on the option you actually tapped: swell on a hit,
+             a quick shake on a miss. Everything else stays still. */
+          const feedback = !revealed
+            ? undefined
+            : isChosen && isRight
+              ? "gq-hit .45s ease-out both"
+              : isChosen && !isRight
+                ? "gq-wrong .4s ease-out both"
+                : undefined;
+          return (
+            <div key={opt} className="relative">
+              {/* the ring, thrown out from the right answer */}
+              {rightOne && (
+                <div
+                  className="gq-anim absolute inset-0 rounded-xl pointer-events-none"
+                  style={{ border: `2px solid ${C.thrust}`, animation: "gq-burst .7s ease-out both" }}
+                />
+              )}
+              {/* sparks, only when you got it right */}
+              {rightOne && isRight && (
+                <div className="absolute inset-0 pointer-events-none overflow-visible">
+                  {[18, 38, 58, 78].map((pct, i) => (
+                    <span
+                      key={pct}
+                      className="gq-anim absolute rounded-full"
+                      style={{
+                        left: `${pct}%`, top: "50%", width: 4, height: 4,
+                        background: i % 2 ? tierColor : C.thrust,
+                        animation: `gq-spark ${0.6 + i * 0.08}s ease-out ${i * 0.04}s both`,
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+              <button
+                onClick={() => choose(opt)}
+                disabled={revealed}
+                className="gq-anim w-full text-left px-4 py-3 rounded-xl active:scale-95"
+                style={{
+                  ...optionStyle(opt),
+                  fontFamily: "'Inter', system-ui, sans-serif",
+                  fontSize: 15,
+                  lineHeight: 1.4,
+                  transition: "background .2s ease, border-color .2s ease, opacity .2s ease",
+                  cursor: revealed ? "default" : "pointer",
+                  animation: feedback,
+                  boxShadow: rightOne ? `0 0 26px ${C.thrust}44` : undefined,
+                }}
+              >
+                <span className="flex items-center justify-between gap-3">
+                  <span>{opt}</span>
+                  {rightOne && <Check size={17} style={{ color: C.thrust, flexShrink: 0 }} />}
+                  {revealed && isChosen && !rightOne && <X size={17} style={{ color: C.abort, flexShrink: 0 }} />}
+                </span>
+              </button>
+            </div>
+          );
+        })}
       </div>
 
       {/* The payoff: the real story about this place */}
       {revealed && (
         <>
           <Panel
-            className="p-5 mt-5"
+            className="gq-anim p-5 mt-5"
             style={{
               borderColor: isRight ? `${C.thrust}55` : `${C.edge}`,
               background: isRight ? `${C.thrust}0D` : C.hull,
+              animation: "gq-reveal .4s cubic-bezier(.16,1,.3,1) .12s both",
             }}
           >
             <div className="flex items-center gap-2 mb-2">

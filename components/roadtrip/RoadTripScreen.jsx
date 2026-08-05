@@ -285,14 +285,35 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
     recentArrivalsRef.current = recent;
 
     /* Go quiet when arrivals are coming thick and fast, when there is
-       already a backlog, or when a pop-up is still on screen. */
-    const busy =
-      recent.length > BURST_LIMIT ||
-      queueLenRef.current >= QUEUE_DEEP ||
-      arrivalRef.current !== null;
+       already a backlog, or when a pop-up is still on screen.
 
-    if (busy) setToast(zone.id);
-    else setArrival(zone.id);
+       Launch pads are the exception. They cluster — six of them within
+       a few miles around Kennedy — so the burst rule would mute exactly
+       the arrivals people came for, turning Launch Complex 39A into a
+       one-line toast. A pad ignores the burst count and the backlog,
+       but still waits its turn if a pop-up is already up. */
+    const headline = zone.kind === "pad";
+    const busy = headline
+      ? arrivalRef.current !== null
+      : recent.length > BURST_LIMIT ||
+        queueLenRef.current >= QUEUE_DEEP ||
+        arrivalRef.current !== null;
+
+    /* Both refs are updated HERE rather than left to the effects below,
+       because zones genuinely can arrive together — drive into a cluster
+       around a launch complex and two fire on the same GPS tick. The
+       effects don't run between those two calls, so without this the
+       second arrival would see a stale "nothing showing", overwrite the
+       first, and the first would never appear at all. Both would still
+       be queued, so nothing was ever lost — but one arrival went
+       invisible, which is what made overlapping zones look broken. */
+    queueLenRef.current += 1;
+    if (busy) {
+      setToast(zone.id);
+    } else {
+      arrivalRef.current = zone.id;
+      setArrival(zone.id);
+    }
   }, []);
 
   const { nearest, resetInside } = useZoneWatcher({
@@ -719,6 +740,7 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
         queuedIds={queue}
         bounds={corridor.bounds}
         mars={C.id === "mars"}
+        nearestId={nearest?.zone?.id}
         height={300}
         onTeleport={simulating ? api.teleport : undefined}
       />
