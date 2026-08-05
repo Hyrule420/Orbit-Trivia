@@ -4,8 +4,11 @@ import React, { useEffect, useRef } from "react";
 import { MapPin, ChevronRight, Navigation, Check, ArrowLeft } from "lucide-react";
 import { useC } from "../../lib/theme";
 import { TIER_META } from "../../lib/questions";
-import { GEO_BY_ID } from "../../lib/geoQuestions";
 import { Btn, Panel, Kicker, formatDistance } from "./ui";
+
+/* This file deliberately imports no corridor data. The `byId` lookup
+   comes in as a prop, so the queue works for whichever road is being
+   driven without knowing anything about corridors at all. */
 
 /* ============================================================
    The bar pinned to the bottom of the screen.
@@ -20,10 +23,10 @@ import { Btn, Panel, Kicker, formatDistance } from "./ui";
    always something ticking down.
    ============================================================ */
 
-export function QueueBar({ queue, nearest, onOpen }) {
+export function QueueBar({ queue, nearest, onOpen, byId }) {
   const C = useC();
   const waiting = queue.length;
-  const latest = waiting ? GEO_BY_ID[queue[queue.length - 1]] : null;
+  const latest = waiting ? byId[queue[queue.length - 1]] : null;
 
   return (
     <div
@@ -129,7 +132,7 @@ export function ArrivalToast({ zone, onDone }) {
 /* ============================================================
    The full queue, opened from the bar.
    ============================================================ */
-export function QueueList({ queue, answered, onPlay, onSkip, onBack }) {
+export function QueueList({ queue, answered, onPlay, onSkip, onBack, byId }) {
   const C = useC();
 
   return (
@@ -150,7 +153,7 @@ export function QueueList({ queue, answered, onPlay, onSkip, onBack }) {
 
       <div className="flex flex-col gap-2">
         {queue.map((id) => {
-          const zone = GEO_BY_ID[id];
+          const zone = byId[id];
           if (!zone) return null;
           const tier = TIER_META[zone.d] || TIER_META.Earthbound;
           return (
@@ -183,7 +186,7 @@ export function QueueList({ queue, answered, onPlay, onSkip, onBack }) {
           </div>
           <div className="flex flex-col gap-1">
             {Object.entries(answered).map(([id, res]) => {
-              const zone = GEO_BY_ID[id];
+              const zone = byId[id];
               if (!zone) return null;
               return (
                 <div key={id} className="flex items-center gap-2 py-2 px-1">

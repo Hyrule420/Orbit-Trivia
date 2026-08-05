@@ -5,7 +5,7 @@ import { ArrowLeft, MapPin, Navigation, Trophy, Check, AlertTriangle, Play, Radi
 import { useC } from "../../lib/theme";
 import { TIER_META } from "../../lib/questions";
 import { buzz } from "../../lib/util";
-import { CORRIDOR, ROUTE, GEO_QUESTIONS, GEO_BY_ID } from "../../lib/geoQuestions";
+import { CORRIDOR_BY_ID, DEFAULT_CORRIDOR_ID } from "../../lib/corridors";
 import { checkPack } from "../../lib/geo";
 import { usePositionSource } from "../../lib/usePositionSource";
 import { useZoneWatcher } from "../../lib/useZoneWatcher";
@@ -65,6 +65,12 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
   const [view, setView] = useState("intro");
   const [loaded, setLoaded] = useState(false);
 
+  /* Which road we're driving. Everything about a region — its route,
+     its zones, its map framing — hangs off this one object, so
+     switching corridors is just switching this id. */
+  const [corridorId, setCorridorId] = useState(DEFAULT_CORRIDOR_ID);
+  const corridor = CORRIDOR_BY_ID[corridorId] || CORRIDOR_BY_ID[DEFAULT_CORRIDOR_ID];
+
   const [queue, setQueue] = useState([]);          // zone ids waiting
   const [answered, setAnswered] = useState({});    // id -> { correct, points }
   const [skipped, setSkipped] = useState([]);      // ids dismissed this trip
@@ -79,12 +85,12 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
   const saveTimerRef = useRef(null);
   const wakeLockRef = useRef(null);
 
-  const { pos, status, error, errorCode, source, simPlaying, simSpeed, setSimSpeed, api } = usePositionSource(ROUTE);
+  const { pos, status, error, errorCode, source, simPlaying, simSpeed, setSimSpeed, api } = usePositionSource(corridor.route);
 
   /* ---------- content sanity check, development only ---------- */
   useEffect(() => {
     if (process.env.NODE_ENV === "production") return;
-    const problems = checkPack(GEO_QUESTIONS, ROUTE, CORRIDOR.bounds);
+    const problems = checkPack(corridor.zones, corridor.route, corridor.bounds);
     if (problems.length) {
       console.warn("[Road Trip] question pack problems:\n" + problems.join("\n"));
     }
@@ -194,7 +200,7 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
   }, []);
 
   const { nearest, resetInside } = useZoneWatcher({
-    pos, zones: GEO_QUESTIONS, skipIds, onEnter: handleEnter,
+    pos, zones: corridor.zones, skipIds, onEnter: handleEnter,
   });
 
   /* ---------- answering ---------- */
@@ -270,19 +276,19 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
     () => Object.values(answered).filter((a) => a.correct).length,
     [answered]
   );
-  const remaining = GEO_QUESTIONS.length - seen.length;
+  const remaining = corridor.zones.length - seen.length;
 
   /* ============================================================
      VIEWS
      ============================================================ */
 
-  if (view === "card" && playing && GEO_BY_ID[playing]) {
+  if (view === "card" && playing && corridor.byId[playing]) {
     return (
       /* key resets the card's internal "which answer did you pick"
          state when we move on to the next question in the queue */
       <GeoQuestionCard
         key={playing}
-        zone={GEO_BY_ID[playing]}
+        zone={corridor.byId[playing]}
         queueRemaining={queue.filter((id) => id !== playing).length}
         onAnswered={recordAnswer}
         onNext={playNext}
@@ -296,6 +302,7 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
       <QueueList
         queue={queue}
         answered={answered}
+        byId={corridor.byId}
         onPlay={playNow}
         onSkip={skipOne}
         onBack={() => setView("map")}
@@ -308,7 +315,7 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
     return (
       <div className="min-h-screen max-w-md mx-auto px-4 pt-8 pb-8">
         <div className="text-center mb-6">
-          <Kicker color={C.ion}>{CORRIDOR.name.toUpperCase()} · {CORRIDOR.road}</Kicker>
+          <Kicker color={C.ion}>{corridor.name.toUpperCase()} · {corridor.road}</Kicker>
           <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 28, color: C.star, marginTop: 6 }}>
             Trip complete
           </div>
@@ -347,7 +354,7 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
             <Kicker color={C.plasma}>PACK COMPLETE</Kicker>
             <p className="text-sm mt-2" style={{ color: C.dim, lineHeight: 1.6 }}>
               You&apos;ve answered every question on the Nature Coast. Reset your history to drive it again,
-              or add more places to <code>lib/geoQuestions.js</code>.
+              or add more places to <code>lib/corridors/</code>.
             </p>
           </Panel>
         )}
@@ -387,7 +394,7 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
         </div>
 
         <div className="text-center mb-2">
-          <Kicker color={C.ion}>{CORRIDOR.name.toUpperCase()} · {CORRIDOR.road}</Kicker>
+          <Kicker color={C.ion}>{corridor.name.toUpperCase()} · {corridor.road}</Kicker>
         </div>
         <h1
           className="text-center mb-3"
@@ -448,8 +455,8 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
   }
 
   /* ---------- the live trip ---------- */
-  const arrivalZone = arrival ? GEO_BY_ID[arrival] : null;
-  const toastZone = toast ? GEO_BY_ID[toast] : null;
+  const arrivalZone = arrival ? corridor.byId[arrival] : null;
+  const toastZone = toast ? corridor.byId[toast] : null;
   const simulating = source === "sim" || source === "manual";
   const offCorridor = nearest && nearest.distanceM > 80000;
 
@@ -535,17 +542,17 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
           </Kicker>
         </span>
         <span style={{ color: C.dim, fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>
-          {seen.length}/{GEO_QUESTIONS.length} ANSWERED
+          {seen.length}/{corridor.zones.length} ANSWERED
         </span>
       </div>
 
       <MapPanel
-        route={ROUTE}
-        zones={GEO_QUESTIONS}
+        route={corridor.route}
+        zones={corridor.zones}
         pos={pos}
         answeredIds={seen}
         queuedIds={queue}
-        bounds={CORRIDOR.bounds}
+        bounds={corridor.bounds}
         mars={C.id === "mars"}
         height={300}
         onTeleport={simulating ? api.teleport : undefined}
@@ -615,7 +622,7 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
         <Btn full variant="ghost" onClick={endTrip}>End trip</Btn>
       </div>
 
-      <QueueBar queue={queue} nearest={nearest} onOpen={() => setView("queue")} />
+      <QueueBar queue={queue} nearest={nearest} byId={corridor.byId} onOpen={() => setView("queue")} />
 
       {toastZone && !arrivalZone && (
         <ArrivalToast zone={toastZone} onDone={() => setToast(null)} />
