@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { MapContainer, TileLayer, Polyline, Circle, CircleMarker, Marker, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -26,6 +26,9 @@ import { useC } from "../../lib/theme";
    queueing questions, scoring — is pure maths and keeps working when
    the tiles do not load.
    ============================================================ */
+
+/* How much of the drive stays visible behind the car. */
+const TRAIL_POINTS = 40;
 
 const TILE_URL = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
 const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
@@ -67,8 +70,20 @@ function SizeFixer() {
 
 export default function GeoMap({
   route, zones, pos, answeredIds, queuedIds, bounds, follow = true, onTeleport, mars, height = 300,
+  nearestId,
 }) {
   const C = useC();
+
+  /* Where we've actually been, drawn as a fading tail behind the car.
+     Capped, because a 90-minute drive would otherwise accumulate
+     thousands of points and the map would slow to a crawl. */
+  const trailRef = useRef([]);
+  if (pos) {
+    const last = trailRef.current[trailRef.current.length - 1];
+    if (!last || last[0] !== pos.lat || last[1] !== pos.lng) {
+      trailRef.current = [...trailRef.current, [pos.lat, pos.lng]].slice(-TRAIL_POINTS);
+    }
+  }
 
   /* The car: an inline HTML arrow, rotated to match our heading. Built
      with divIcon so there is no image file involved. */
@@ -102,6 +117,19 @@ export default function GeoMap({
         /* Mars runs warm, so the tiles get warmed to match rather than
            swapping to a whole different tile provider. */
         .nc-map-mars .leaflet-tile-pane { filter: sepia(.4) hue-rotate(-18deg) saturate(1.3); }
+
+        /* The zone you're heading for breathes, so there is always
+           something on the map telling you what's coming. Pure CSS on
+           the SVG path — no animation loop, which matters on a screen
+           that already holds a GPS watch and a wake lock for an hour. */
+        @keyframes nc-zone-pulse {
+          0%,100% { stroke-opacity: .35; stroke-width: 1; }
+          50%     { stroke-opacity: 1;   stroke-width: 3; }
+        }
+        .nc-map .nc-next { animation: nc-zone-pulse 2.2s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) {
+          .nc-map .nc-next { animation: none; stroke-opacity: .8; }
+        }
       `}</style>
 
       <div className={`nc-map ${mars ? "nc-map-mars" : ""}`} style={{ borderRadius: 18, overflow: "hidden", border: `1px solid ${C.edge}` }}>
@@ -121,23 +149,40 @@ export default function GeoMap({
           {/* The highway */}
           <Polyline positions={route} pathOptions={{ color: C.ion, weight: 3, opacity: 0.55 }} />
 
+          {/* Where you've already been */}
+          {trailRef.current.length > 1 && (
+            <Polyline
+              positions={trailRef.current}
+              pathOptions={{ color: C.thrust, weight: 4, opacity: 0.4 }}
+            />
+          )}
+
           {/* Every zone: a faint circle for the trigger area, a solid dot
-              for the centre. Green once you've answered it. */}
+              for the centre. Green once you've answered it, and the one
+              you're heading for pulses. */}
           {zones.map((z) => {
             const done = answeredIds.includes(z.id);
             const queued = queuedIds.includes(z.id);
+            const isNext = !done && !queued && z.id === nearestId;
             const color = done ? C.thrust : queued ? C.plasma : C.ion;
             return (
               <React.Fragment key={z.id}>
                 <Circle
                   center={[z.lat, z.lng]}
                   radius={z.radiusM}
-                  pathOptions={{ color, weight: 1, opacity: 0.35, fillColor: color, fillOpacity: 0.07 }}
+                  pathOptions={{
+                    color, weight: 1, opacity: 0.35,
+                    fillColor: color, fillOpacity: done ? 0.14 : 0.07,
+                    className: isNext ? "nc-next" : undefined,
+                  }}
                 />
                 <CircleMarker
                   center={[z.lat, z.lng]}
-                  radius={5}
-                  pathOptions={{ color, weight: 2, fillColor: color, fillOpacity: done ? 1 : 0.5 }}
+                  radius={done ? 6 : 5}
+                  pathOptions={{
+                    color, weight: done ? 3 : 2,
+                    fillColor: color, fillOpacity: done ? 1 : 0.5,
+                  }}
                 />
               </React.Fragment>
             );
