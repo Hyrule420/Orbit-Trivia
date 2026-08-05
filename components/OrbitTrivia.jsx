@@ -5,27 +5,7 @@ import { THEMES, ThemeCtx, useC } from "@/lib/theme";
 import { QUESTIONS, TIER_META, CATEGORIES, TESLA_MODELS } from "@/lib/questions";
 import { shuffle, buzz } from "@/lib/util";
 import { SFX } from "@/lib/sfx";
-
-/* ============================================================
-   PERSISTENCE
-   The prototype ran inside a preview that provided window.storage.
-   The deployed app has no such thing, so we back the same API with
-   the browser's own localStorage. Wrapped in a guard because this
-   module is also evaluated on the server, where window is undefined.
-   ============================================================ */
-if (typeof window !== "undefined" && !window.storage) {
-  window.storage = {
-    get: async (key) => {
-      const value = window.localStorage.getItem(key);
-      if (value === null) throw new Error(`No stored value for ${key}`);
-      return { key, value };
-    },
-    set: async (key, value) => {
-      window.localStorage.setItem(key, String(value));
-      return { key, value };
-    },
-  };
-}
+import { storage } from "@/lib/storage";
 
 
 /* ============================================================
@@ -2641,7 +2621,7 @@ export default function OrbitTrivia() {
 
   const dismissInstall = async () => {
     setInstallDismissed(true);
-    try { await window.storage.set("orbit:installhint", "off"); } catch (e) { /* session only */ }
+    try { await storage.set("orbit:installhint", "off"); } catch (e) { /* session only */ }
   };
 
   const runAndroidInstall = androidEvt
@@ -2684,37 +2664,37 @@ export default function OrbitTrivia() {
   useEffect(() => {
     (async () => {
       try {
-        const s = await window.storage.get("orbit:sound");
+        const s = await storage.get("orbit:sound");
         if (s?.value === "off") setSoundOn(false);
       } catch (e) { /* default is on */ }
       /* The saved theme is deliberately NOT restored here. Every fresh
          launch starts on the Moon/Mars picker, even for returning players. */
       try {
-        const r = await window.storage.get("orbit:stats");
+        const r = await storage.get("orbit:stats");
         if (r?.value) setStats(JSON.parse(r.value));
       } catch (e) { /* nothing saved yet */ }
       try {
-        const d = await window.storage.get("orbit:daily");
+        const d = await storage.get("orbit:daily");
         if (d?.value && JSON.parse(d.value).date === todayKey()) setDailyDone(true);
       } catch (e) { /* no daily record yet */ }
       try {
-        const p = await window.storage.get("orbit:profile");
+        const p = await storage.get("orbit:profile");
         if (p?.value) setProfile({ name: "", handle: "", model: "", ...JSON.parse(p.value) });
       } catch (e) { /* no profile yet */ }
       try {
-        const ds = await window.storage.get("orbit:daystreak");
+        const ds = await storage.get("orbit:daystreak");
         if (ds?.value) setDayStreakData({ lastDate: null, current: 0, best: 0, ...JSON.parse(ds.value) });
       } catch (e) { /* no day streak yet */ }
       try {
-        const m = await window.storage.get("orbit:milestone");
+        const m = await storage.get("orbit:milestone");
         if (m?.value) setStreakMilestone(parseInt(m.value, 10));
       } catch (e) { /* no pending milestone */ }
       try {
-        const ev = await window.storage.get("orbit:escape");
+        const ev = await storage.get("orbit:escape");
         if (ev?.value) setEscapeBest(parseFloat(ev.value) || 0);
       } catch (e) { /* no escape run yet */ }
       try {
-        const ih = await window.storage.get("orbit:installhint");
+        const ih = await storage.get("orbit:installhint");
         if (ih?.value === "off") setInstallDismissed(true);
       } catch (e) { /* never dismissed */ }
       setBooted(true);
@@ -2724,7 +2704,7 @@ export default function OrbitTrivia() {
   const pickTheme = async (id) => {
     setThemeId(id);
     SFX.setTheme(id);
-    try { await window.storage.set("orbit:theme", id); } catch (e) { /* not fatal */ }
+    try { await storage.set("orbit:theme", id); } catch (e) { /* not fatal */ }
   };
 
   const toggleSound = async () => {
@@ -2732,23 +2712,23 @@ export default function OrbitTrivia() {
     setSoundOn(next);
     SFX.setEnabled(next);
     if (next) SFX.ui();  // confirm it came back on
-    try { await window.storage.set("orbit:sound", next ? "on" : "off"); } catch (e) { /* session only */ }
+    try { await storage.set("orbit:sound", next ? "on" : "off"); } catch (e) { /* session only */ }
   };
 
   const dismissMilestone = async () => {
     setStreakMilestone(null);
-    try { await window.storage.set("orbit:milestone", ""); } catch (e) { /* not fatal */ }
+    try { await storage.set("orbit:milestone", ""); } catch (e) { /* not fatal */ }
   };
 
   const saveProfile = async (next) => {
     setProfile(next);
-    try { await window.storage.set("orbit:profile", JSON.stringify(next)); } catch (e) { /* session only */ }
+    try { await storage.set("orbit:profile", JSON.stringify(next)); } catch (e) { /* session only */ }
     setScreen("home");
   };
 
   const saveStats = async (next) => {
     setStats(next);
-    try { await window.storage.set("orbit:stats", JSON.stringify(next)); } catch (e) { /* session only */ }
+    try { await storage.set("orbit:stats", JSON.stringify(next)); } catch (e) { /* session only */ }
   };
 
   const afterDrivingCheck = () => {
@@ -2784,7 +2764,7 @@ export default function OrbitTrivia() {
       setScreen("results");
       if (data.velocity > escapeBest) {
         setEscapeBest(data.velocity);
-        try { await window.storage.set("orbit:escape", String(data.velocity)); } catch (e) { /* session only */ }
+        try { await storage.set("orbit:escape", String(data.velocity)); } catch (e) { /* session only */ }
       }
       await saveStats({ ...stats, runs: stats.runs + 1 });
       return;
@@ -2800,14 +2780,14 @@ export default function OrbitTrivia() {
     });
     if (mode === "daily") {
       setDailyDone(true);
-      try { await window.storage.set("orbit:daily", JSON.stringify({ date: todayKey(), score: topScore })); } catch (e) { /* not fatal */ }
+      try { await storage.set("orbit:daily", JSON.stringify({ date: todayKey(), score: topScore })); } catch (e) { /* not fatal */ }
       const nextStreak = bumpDayStreak(dayStreakData);
       if (nextStreak !== dayStreakData) {
         setDayStreakData(nextStreak);
-        try { await window.storage.set("orbit:daystreak", JSON.stringify(nextStreak)); } catch (e) { /* not fatal */ }
+        try { await storage.set("orbit:daystreak", JSON.stringify(nextStreak)); } catch (e) { /* not fatal */ }
         if (nextStreak.current === 7 || nextStreak.current === 30 || nextStreak.current === 100) {
           setStreakMilestone(nextStreak.current);
-          try { await window.storage.set("orbit:milestone", String(nextStreak.current)); } catch (e) { /* not fatal */ }
+          try { await storage.set("orbit:milestone", String(nextStreak.current)); } catch (e) { /* not fatal */ }
         }
       }
     }

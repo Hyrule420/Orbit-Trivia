@@ -45,7 +45,7 @@ const QUEUE_DEEP = 5;
 
 const SAVE_DEBOUNCE_MS = 2000;
 
-/* Small helpers around the storage shim set up in OrbitTrivia.jsx.
+/* Small helpers around the storage shim set up in lib/storage.js.
    Every call is wrapped: storage can be full, disabled or blocked in
    private browsing, and none of that should end a road trip. */
 async function loadJSON(key, fallback) {
