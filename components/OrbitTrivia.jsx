@@ -3238,9 +3238,10 @@ export default function OrbitTrivia() {
     }
   };
 
+  /* Fonts are loaded as real <link> tags in app/layout.jsx, not via
+     @import in this <style> block — see the comment there for why. */
   const fonts = (
     <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500&display=swap');
       * { -webkit-tap-highlight-color: transparent; }
       button:focus-visible, input:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
       /* real strikes flicker — bright, stutter, re-strike, fade */
