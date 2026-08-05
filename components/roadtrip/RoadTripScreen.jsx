@@ -212,15 +212,25 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
     return () => clearTimeout(saveTimerRef.current);
   }, [loaded, corridorId, queue, answered, skipped, points, seen]);
 
-  /* ---------- if location was already granted, don't re-explain ---------- */
+  /* ---------- if location was already granted, don't re-explain ----------
+     This must only skip the INTRO screen, not the picker. The picker is
+     how you choose which road to drive, and it has to show every time
+     you enter the mode — otherwise a returning player who granted
+     location once gets permanently locked onto whichever corridor
+     happens to load by default. Picking a road sets view to "intro"
+     (see the picker below), which is what lets this fire. */
   useEffect(() => {
-    if (loaded && optedIn && view === "picker") {
+    if (loaded && optedIn && view === "intro") {
       setView("map");
       api.startGps();
     }
-    /* Only ever runs on the transition into a loaded state. */
+    /* view is included so this also fires when picking the same road
+       you're already on, where corridorId doesn't change and `loaded`
+       never re-toggles. api is deliberately excluded — it's a fresh
+       object every render, and including it would fire on every
+       render rather than only on the transitions that matter. */
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded]);
+  }, [loaded, view, optedIn]);
 
   /* ---------- keep the screen awake during a real drive ---------- */
   useEffect(() => {
