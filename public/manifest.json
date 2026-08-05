@@ -1,14 +1,18 @@
 {
   "name": "Orbit Trivia",
   "short_name": "Orbit Trivia",
-  "description": "Tesla, SpaceX and Elon deep-cut trivia. Daily challenges, endless Escape Velocity runs, and pass-and-play Road Trip mode.",
+  "description": "Tesla, SpaceX and Elon deep-cut trivia. Daily challenges, endless Escape Velocity runs, pass-and-play Crew Mode, and a location-aware Road Trip down Florida's US-19.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#05070F",
   "theme_color": "#05070F",
-  "categories": ["games", "entertainment", "education"],
+  "categories": [
+    "games",
+    "entertainment",
+    "education"
+  ],
   "icons": [
     {
       "src": "/icon-192.png",
