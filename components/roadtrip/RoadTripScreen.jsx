@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { ArrowLeft, MapPin, Navigation, Trophy, Check, AlertTriangle, Play, Radio, RotateCcw, Map as MapIcon } from "lucide-react";
+import { ArrowLeft, MapPin, Navigation, Trophy, Check, AlertTriangle, Play, Radio, RotateCcw, ChevronRight, Repeat, Map as MapIcon } from "lucide-react";
 import { useC } from "../../lib/theme";
 import { TIER_META } from "../../lib/questions";
 import { buzz } from "../../lib/util";
-import { CORRIDOR_BY_ID, DEFAULT_CORRIDOR_ID } from "../../lib/corridors";
+import { CORRIDORS, CORRIDOR_BY_ID, DEFAULT_CORRIDOR_ID } from "../../lib/corridors";
 import { checkPack } from "../../lib/geo";
 import { usePositionSource } from "../../lib/usePositionSource";
 import { useZoneWatcher } from "../../lib/useZoneWatcher";
@@ -115,8 +115,13 @@ async function loadCorridorProgress(corridorId) {
 export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, geoBest = 0 }) {
   const C = useC();
 
-  const [view, setView] = useState("intro");
+  const [view, setView] = useState("picker");
   const [loaded, setLoaded] = useState(false);
+  /* Screen-local boot: we need last-corridor out of storage before
+     loading any progress, or we'd load the default corridor's data and
+     then immediately throw it away. */
+  const [booted, setBooted] = useState(false);
+  const [pickerCounts, setPickerCounts] = useState({});
 
   /* Which road we're driving. Everything about a region — its route,
      its zones, its map framing — hangs off this one object, so
@@ -145,16 +150,36 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
     if (process.env.NODE_ENV === "production") return;
     const problems = checkPack(corridor.zones, corridor.route, corridor.bounds);
     if (problems.length) {
-      console.warn("[Road Trip] question pack problems:\n" + problems.join("\n"));
+      console.warn(`[Road Trip] ${corridor.name} pack problems:\n` + problems.join("\n"));
     }
-  }, []);
+  }, [corridor]);
 
   /* ---------- load saved progress for whichever corridor is active ----------
      This re-runs on every corridor switch, which is what keeps the two
      roads' progress genuinely separate. `loaded` drops to false first so
      the save effect below can't fire with one corridor's state under
      another corridor's key. */
+  /* ---------- once: which road were we last on, and how far through
+     is each of them? Both are needed before the picker can render. ---------- */
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const counts = {};
+      for (const c of CORRIDORS) {
+        const { seen } = await loadCorridorProgress(c.id);
+        counts[c.id] = Array.isArray(seen) ? seen.length : 0;
+      }
+      const last = await loadRaw("orbit:geo:corridor");
+      if (cancelled) return;
+      setPickerCounts(counts);
+      if (last && CORRIDOR_BY_ID[last]) setCorridorId(last);
+      setBooted(true);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!booted) return;
     let cancelled = false;
     setLoaded(false);
     (async () => {
@@ -174,7 +199,7 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
       setLoaded(true);
     })();
     return () => { cancelled = true; };
-  }, [corridorId]);
+  }, [booted, corridorId]);
 
   /* ---------- save progress, but not on every keystroke ---------- */
   useEffect(() => {
@@ -189,7 +214,7 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
 
   /* ---------- if location was already granted, don't re-explain ---------- */
   useEffect(() => {
-    if (loaded && optedIn && view === "intro") {
+    if (loaded && optedIn && view === "picker") {
       setView("map");
       api.startGps();
     }
@@ -435,15 +460,85 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
     );
   }
 
-  /* ---------- intro ---------- */
-  if (view === "intro") {
-    const noApi = typeof navigator !== "undefined" && !("geolocation" in navigator);
+  /* ---------- pick a road ---------- */
+  if (view === "picker") {
     return (
       <div className="min-h-screen max-w-md mx-auto px-4 pt-5 pb-8">
         <button onClick={onHome} className="flex items-center gap-2 mb-6 active:scale-95" style={{ color: C.dim }}>
           <ArrowLeft size={17} />
           <Kicker>LAUNCHPAD</Kicker>
         </button>
+
+        <h1 style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 26, color: C.star }}>
+          Pick your road
+        </h1>
+        <p className="text-sm mt-1 mb-6" style={{ color: C.dim, lineHeight: 1.6 }}>
+          Each one keeps its own score and remembers which places you&apos;ve already answered.
+        </p>
+
+        <div className="flex flex-col gap-3">
+          {CORRIDORS.map((c) => {
+            const done = pickerCounts[c.id] ?? 0;
+            const total = c.zones.length;
+            const complete = done >= total;
+            return (
+              <button
+                key={c.id}
+                onClick={() => { setCorridorId(c.id); setView("intro"); }}
+                className="text-left active:scale-95 w-full"
+              >
+                <Panel className="p-5" style={{ borderColor: c.id === corridorId ? `${C.ion}66` : C.edge }}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <MapPin size={15} style={{ color: complete ? C.thrust : C.ion }} />
+                        <Kicker color={complete ? C.thrust : C.ion}>
+                          {complete ? "ALL ANSWERED" : c.road}
+                        </Kicker>
+                      </div>
+                      <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, color: C.star }}>
+                        {c.name}
+                      </div>
+                      <div className="text-sm mt-1" style={{ color: C.dim, lineHeight: 1.5 }}>
+                        {c.tagline}
+                      </div>
+
+                      {/* how far through this road you are */}
+                      <div className="flex items-center gap-2 mt-3">
+                        <div style={{ flex: 1, height: 3, borderRadius: 2, background: C.edge, overflow: "hidden" }}>
+                          <div style={{ width: `${total ? (done / total) * 100 : 0}%`, height: "100%", background: complete ? C.thrust : C.ion }} />
+                        </div>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.dim }}>
+                          {done}/{total}
+                        </span>
+                      </div>
+                    </div>
+                    <ChevronRight size={20} style={{ color: C.dim, marginTop: 20, flexShrink: 0 }} />
+                  </div>
+                </Panel>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  /* ---------- intro ---------- */
+  if (view === "intro") {
+    const noApi = typeof navigator !== "undefined" && !("geolocation" in navigator);
+    return (
+      <div className="min-h-screen max-w-md mx-auto px-4 pt-5 pb-8">
+        <div className="flex items-center justify-between mb-6">
+          <button onClick={onHome} className="flex items-center gap-2 active:scale-95" style={{ color: C.dim }}>
+            <ArrowLeft size={17} />
+            <Kicker>LAUNCHPAD</Kicker>
+          </button>
+          <button onClick={() => setView("picker")} className="flex items-center gap-2 active:scale-95" style={{ color: C.dim }}>
+            <Repeat size={14} />
+            <Kicker>CHANGE ROAD</Kicker>
+          </button>
+        </div>
 
         <div className="flex justify-center mb-5">
           <div
@@ -464,9 +559,8 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
           Road Trip Florida
         </h1>
         <p className="text-center text-sm mb-6" style={{ color: C.dim, lineHeight: 1.65 }}>
-          Drive US-19 between Fanning Springs and Tarpon Springs and questions unlock as you pass real
-          places — the springs, the manatees, the mermaids, the canal that was never finished, and the
-          Greek sponge divers at the end of the road.
+          {corridor.tagline} Questions unlock as you drive past the real places along {corridor.road}
+          {" "}— {corridor.zones.length} of them on this road.
         </p>
 
         <Panel className="p-4 mb-4">
