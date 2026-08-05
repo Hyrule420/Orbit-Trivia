@@ -2197,9 +2197,8 @@ function Game({ config, mode, onFinish, onQuit }) {
     <div className="relative min-h-screen flex flex-col" style={{ background: C.void }}>
       <Starfield comets={false} />
       {escapeBig && (
-        <LaunchCelebration
-          kicker="11.2 KM/S — YOU'RE FREE"
-          title="ESCAPE VELOCITY"
+        <EscapeBreach
+          velocity={velocity}
           onDone={() => setEscapeBig(null)}
         />
       )}
@@ -2614,6 +2613,199 @@ function LaunchCelebration({ onDone, small = false, kicker = "FLAWLESS RUN", tit
           }}
         >
           {title}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* The one-time breach moment: crossing 11.2 km/s and actually breaking
+   free of Earth. Escape Velocity's other milestones get the small promo
+   toast (see `promo` in Game); this is the only one that earns a full
+   takeover, because it's the point of the whole mode. */
+function EscapeBreach({ velocity, onDone }) {
+  const C = useC();
+
+  useEffect(() => {
+    const t = setTimeout(onDone, 4200);
+    return () => clearTimeout(t);
+  }, [onDone]);
+
+  useEffect(() => {
+    // Big roar slightly delayed so it hits with the flash
+    const t = setTimeout(() => SFX.liftoff(true), 550);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Hyperspace streaks (radial)
+  const streaks = Array.from({ length: 18 }, (_, i) => ({
+    angle: (i * 20) + (i % 3) * 4,
+    delay: 0.55 + (i % 7) * 0.04,
+    length: 40 + (i % 5) * 12,
+  }));
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-hidden pointer-events-none" aria-hidden="true">
+      <style>{`
+        @keyframes eb-shake {
+          0%,100% { transform: translate(0,0); }
+          10% { transform: translate(-6px,3px); }
+          20% { transform: translate(5px,-4px); }
+          30% { transform: translate(-4px,5px); }
+          40% { transform: translate(7px,2px); }
+          50% { transform: translate(-5px,-3px); }
+          60% { transform: translate(4px,4px); }
+          70% { transform: translate(-3px,2px); }
+          80% { transform: translate(2px,-2px); }
+        }
+        @keyframes eb-flash {
+          0%   { opacity: 0; }
+          8%   { opacity: 1; }
+          25%  { opacity: 0.7; }
+          100% { opacity: 0; }
+        }
+        @keyframes eb-shock {
+          0%   { transform: scale(0.05); opacity: 1; border-width: 14px; }
+          40%  { opacity: 0.85; border-width: 6px; }
+          100% { transform: scale(2.8); opacity: 0; border-width: 1px; }
+        }
+        @keyframes eb-streak {
+          0%   { transform: scaleY(0.1) translateY(0); opacity: 0; }
+          15%  { opacity: 1; }
+          100% { transform: scaleY(1.4) translateY(-30vh); opacity: 0; }
+        }
+        @keyframes eb-text-in {
+          0%   { transform: scale(2.4) translateY(20px); opacity: 0; filter: blur(12px); }
+          35%  { transform: scale(0.92) translateY(0); opacity: 1; filter: blur(0); }
+          55%  { transform: scale(1.04); }
+          100% { transform: scale(1); }
+        }
+        @keyframes eb-sub-in {
+          0%   { opacity: 0; transform: translateY(18px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes eb-vignette {
+          0%   { opacity: 0; }
+          30%  { opacity: 0.7; }
+          100% { opacity: 0.35; }
+        }
+      `}</style>
+
+      {/* Phase 1+2: violent shake on the whole layer */}
+      <div
+        className="absolute inset-0"
+        style={{ animation: "eb-shake 0.9s ease-in-out 0.15s both" }}
+      >
+        {/* Hard white flash */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background: "#FFFFFF",
+            animation: "eb-flash 0.9s ease-out 0.55s both",
+            mixBlendMode: "screen",
+          }}
+        />
+
+        {/* Expanding shockwave ring */}
+        <div
+          className="absolute left-1/2 top-1/2 rounded-full"
+          style={{
+            width: 120,
+            height: 120,
+            marginLeft: -60,
+            marginTop: -60,
+            border: `14px solid ${C.ion}`,
+            boxShadow: `0 0 40px ${C.ion}, 0 0 80px ${C.plasma}`,
+            animation: "eb-shock 1.1s cubic-bezier(.15,.8,.3,1) 0.58s both",
+          }}
+        />
+
+        {/* Radial hyperspace streaks */}
+        {streaks.map((s, i) => (
+          <div
+            key={i}
+            className="absolute left-1/2 top-1/2 origin-bottom"
+            style={{
+              width: 3,
+              height: `${s.length}vh`,
+              marginLeft: -1.5,
+              background: `linear-gradient(to top, transparent, ${C.star}, ${C.ion})`,
+              transform: `rotate(${s.angle}deg)`,
+              animation: `eb-streak 1.15s ease-out ${s.delay}s both`,
+              filter: "blur(1px)",
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Dark vignette that stays a bit after the flash */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: "radial-gradient(circle at center, transparent 20%, #000 75%)",
+          animation: "eb-vignette 2.2s ease-out both",
+        }}
+      />
+
+      {/* Big text */}
+      <div
+        className="absolute inset-x-0 text-center px-6"
+        style={{ top: "34%", animation: "eb-text-in 1.1s cubic-bezier(.2,.9,.3,1) 1.35s both" }}
+      >
+        <div
+          style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 12,
+            letterSpacing: "0.32em",
+            color: C.ion,
+            marginBottom: 10,
+          }}
+        >
+          11.2 KM/S
+        </div>
+        <div
+          style={{
+            fontFamily: "'Chakra Petch', sans-serif",
+            fontWeight: 700,
+            fontSize: 42,
+            lineHeight: 1.05,
+            color: C.star,
+            textShadow: `0 0 40px ${C.ion}, 0 0 80px ${C.plasma}`,
+          }}
+        >
+          ESCAPE<br />VELOCITY
+        </div>
+        <div
+          style={{
+            marginTop: 14,
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 13,
+            letterSpacing: "0.18em",
+            color: C.thrust,
+            animation: "eb-sub-in 0.7s ease-out 2.1s both",
+          }}
+        >
+          YOU&apos;RE FREE
+        </div>
+      </div>
+
+      {/* Final velocity number that appears late */}
+      <div
+        className="absolute inset-x-0 text-center"
+        style={{
+          bottom: "18%",
+          animation: "eb-sub-in 0.8s ease-out 2.6s both",
+        }}
+      >
+        <div
+          style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 28,
+            fontWeight: 700,
+            color: C.star,
+          }}
+        >
+          {velocity.toFixed(1)} <span style={{ fontSize: 14, color: C.dim }}>km/s</span>
         </div>
       </div>
     </div>
