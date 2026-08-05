@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
 import { Rocket, Play, Users, Trophy, X, Pause, ChevronRight, Check, Share2, Share, Flame, Target, AlertTriangle, Repeat, User, Volume2, VolumeX } from "lucide-react";
+import StarshipHero from "@/components/StarshipCatch";
 
 /* ============================================================
    PERSISTENCE
@@ -1266,6 +1267,13 @@ function Home({ onDaily, onCustom, onEscape, escapeBest = 0, stats, dailyDone, o
   const rafRef = useRef(null);
   const timers = useRef([]);
 
+  /* Live flight state for the artwork. A ref, not state, on purpose: the
+     Starship's plume, plasma sheath and belly-flop all need the altitude
+     every frame, and putting that in Home's state would re-render the
+     mode cards sixty times a second mid-shatter. StarshipHero reads this
+     from its own rAF instead. */
+  const flightRef = useRef({ y: 0, alt: 0 });
+
   const stopAll = () => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     timers.current.forEach(clearTimeout);
@@ -1276,6 +1284,11 @@ function Home({ onDaily, onCustom, onEscape, escapeBest = 0, stats, dailyDone, o
 
   const setRocket = (y, scale) => {
     if (rocketRef.current) rocketRef.current.style.transform = `translateY(${y}px) scale(${scale})`;
+    /* normalised against one screen height, so "altitude" means the same
+       thing on a phone and on a desktop */
+    const H = typeof window !== "undefined" ? window.innerHeight : 800;
+    flightRef.current.y = y;
+    flightRef.current.alt = Math.min(1, -y / (H * 0.85));
   };
 
   const tapRocket = () => {
@@ -1388,7 +1401,6 @@ function Home({ onDaily, onCustom, onEscape, escapeBest = 0, stats, dailyDone, o
   };
 
   const launching = phase !== "idle";
-  const burning = phase === "ignition" || phase === "ascent" || phase === "descent";
 
   const milestoneLabel =
     streakMilestone === 7 ? "ONE WEEK STRONG" : streakMilestone === 30 ? "ONE MONTH STRONG" : streakMilestone === 100 ? "CENTURION" : null;
@@ -1597,104 +1609,16 @@ function Home({ onDaily, onCustom, onEscape, escapeBest = 0, stats, dailyDone, o
           })}
         </div>
 
-        <div className="flex-1 flex items-end justify-center pb-2" style={{ minHeight: 150 }}>
-          <button
-            onClick={tapRocket}
-            aria-label="Launch the rocket"
-            className="relative active:scale-95"
-            style={{ background: "transparent", border: "none", cursor: "pointer", padding: "20px 40px 28px", transition: "transform .12s ease" }}
-          >
-            <span
-              ref={rocketRef}
-              style={{
-                position: "relative",
-                zIndex: 1,
-                display: "inline-block",
-                willChange: "transform",
-                /* ascent and descent are set frame by frame in JS — CSS only
-                   owns the idle drift and the hold-down shake */
-                animation:
-                  phase === "ignition"
-                    ? "padshake .09s linear infinite"
-                    : phase === "idle"
-                    ? "drift 4.5s ease-in-out infinite"
-                    : "none",
-              }}
-            >
-              <Rocket
-                size={96}
-                style={{
-                  color: C.star,
-                  transform: "rotate(-45deg)",
-                  filter: `drop-shadow(0 0 ${burning ? 42 : 28}px ${C.ion})`,
-                  transition: "filter .3s ease",
-                }}
-              />
-              {burning && (
-                <span
-                  aria-hidden="true"
-                  style={{
-                    position: "absolute",
-                    left: "50%",
-                    top: 76,
-                    marginLeft: -13,
-                    width: 26,
-                    height: phase === "ascent" ? 96 : 52,
-                    transition: "height .4s ease",
-                    background: `linear-gradient(180deg, #FFFFFF 0%, ${C.ion} 24%, ${C.abort} 58%, transparent 100%)`,
-                    filter: "blur(6px)",
-                    borderRadius: "50% 50% 50% 50% / 22% 22% 78% 78%",
-                    animation: "plume .14s ease-in-out infinite alternate",
-                  }}
-                />
-              )}
-            </span>
-
-            {/* ---- chopstick arms: open on the tower, closed around the rocket ---- */}
-            {[-1, 1].map((side) => (
-              <span
-                key={side}
-                aria-hidden="true"
-                className="absolute"
-                style={{
-                  zIndex: 2,
-                  left: "50%",
-                  bottom: 12,
-                  width: 7,
-                  height: arms === "open" ? 54 : 62,
-                  borderRadius: 4,
-                  background: `linear-gradient(180deg, ${C.edge}, ${C.hullLight})`,
-                  border: `1px solid ${arms === "clamped" ? C.ion : C.edge}`,
-                  boxShadow: arms === "clamped" ? `0 0 16px ${C.ion}88` : "none",
-                  transform: `translateX(${side * (arms === "open" ? 46 : 17)}px)`,
-                  transition: "transform .55s cubic-bezier(.3,.9,.35,1), height .55s ease, border-color .3s, box-shadow .3s",
-                }}
-              />
-            ))}
-
-            {/* launch pad */}
-            <span
-              aria-hidden="true"
-              className="absolute"
-              style={{
-                left: "50%",
-                bottom: 10,
-                marginLeft: -46,
-                width: 92,
-                height: 5,
-                borderRadius: 4,
-                background: `linear-gradient(90deg, transparent, ${C.edge}, transparent)`,
-                boxShadow:
-                  phase === "ignition" || phase === "ascent"
-                    ? `0 0 40px ${C.abort}, 0 0 80px ${C.ion}55`
-                    : arms === "clamped"
-                    ? `0 0 30px ${C.ion}66`
-                    : `0 0 14px ${C.ion}33`,
-                transition: "box-shadow .3s ease",
-                animation: phase === "ignition" ? "padBloom .5s ease-in-out infinite" : "none",
-              }}
-            />
-          </button>
+        {/* ---- Starship on the pad, and the tower that catches it ---- */}
+        <div className="flex-1 flex items-end justify-center" style={{ minHeight: 248 }}>
+          <StarshipHero
+            C={C}
+            phase={phase}
+            arms={arms}
+            shipRef={rocketRef}
+            flightRef={flightRef}
+            onTap={tapRocket}
+          />
         </div>
 
         <div className="mt-auto pt-8">
