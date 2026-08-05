@@ -39,6 +39,21 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
+      <head>
+        {/* Real <link> tags, not a CSS @import inside a JS-rendered <style>.
+            <style> is a browser "raw text" element, so entities in an
+            @import URL (the ' and & in the Google Fonts query string) get
+            HTML-escaped by React on the server but never decoded by the
+            browser, and the mismatch fails hydration on every load. A
+            <link> has no text content to escape, and it also starts the
+            font fetch immediately instead of after hydration. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500&display=swap"
+        />
+      </head>
       <body style={{ margin: 0, padding: 0, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
         {children}
         <Analytics />
