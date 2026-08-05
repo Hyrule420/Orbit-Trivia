@@ -1221,23 +1221,32 @@ const LAUNCH = {
 const CRACK_PATH =
   "M48 0 L52 20 L46 45 M0 44 L14 48 L30 40 L46 45 L51 70 L68 62 L84 70 L100 66 M51 70 L49 100";
 
-function CardCracks({ phase }) {
+/* Rendered INSIDE a shard, so the shard's clip-path cuts the path down to
+   that piece's own broken edge — and the glow travels with the piece.
+   Each side shows half a stroke; when the pieces meet, the halves make one
+   full-brightness seam, which is what reads as a weld. */
+function CardCracks({ welding }) {
   const C = useC();
-  const anim =
-    phase === "weld"
-      ? `crackFlare ${LAUNCH.weldSec}s ease-out both`
-      : "crackIn .3s ease-out both";
   return (
     <svg
       aria-hidden="true"
       viewBox="0 0 100 100"
       preserveAspectRatio="none"
       className="absolute inset-0 pointer-events-none"
-      style={{ width: "100%", height: "100%", overflow: "visible", animation: anim }}
+      style={{
+        width: "100%",
+        height: "100%",
+        animation: welding
+          ? `weldSeam ${LAUNCH.weldSec}s ease-out both`
+          : "edgeCool .35s ease-out both",
+      }}
     >
-      <path d={CRACK_PATH} fill="none" stroke={C.ion} strokeWidth={3} opacity={0.35}
-            vectorEffect="non-scaling-stroke" style={{ filter: "blur(2px)" }} />
-      <path d={CRACK_PATH} fill="none" stroke="#FFFFFF" strokeWidth={1} opacity={0.9}
+      {/* outer bloom, then the hot core — both straddle the fracture line */}
+      <path d={CRACK_PATH} fill="none" stroke={C.ion} strokeWidth={7} opacity={0.5}
+            vectorEffect="non-scaling-stroke" style={{ filter: "blur(3px)" }} />
+      <path d={CRACK_PATH} fill="none" stroke={C.star} strokeWidth={3} opacity={0.75}
+            vectorEffect="non-scaling-stroke" style={{ filter: "blur(1px)" }} />
+      <path d={CRACK_PATH} fill="none" stroke="#FFFFFF" strokeWidth={1.4}
             vectorEffect="non-scaling-stroke" />
     </svg>
   );
@@ -1580,11 +1589,9 @@ function Home({ onDaily, onCustom, onEscape, escapeBest = 0, stats, dailyDone, o
                       }}
                     >
                       {card}
+                      <CardCracks welding={welding} />
                     </div>
                   ))}
-
-                {/* fracture lines: lit while it's in pieces, white-hot as it welds */}
-                {hit && <CardCracks phase={welding ? "weld" : "broken"} />}
               </div>
             );
           })}
@@ -3452,15 +3459,19 @@ export default function OrbitTrivia() {
       /* ---- home launch sequence ----
          Spread is driven by --spread / --spread2 so the throw distance can be
          tuned from the LAUNCH block in JS without touching these rules. */
-      @keyframes crackIn {
-        0%   { opacity: 0; }
-        100% { opacity: .85; }
+      /* a freshly broken edge glows, then cools while the piece drifts */
+      @keyframes edgeCool {
+        0%   { opacity: 0;   filter: brightness(2.4); }
+        18%  { opacity: 1;   filter: brightness(2.4); }
+        100% { opacity: .45; filter: brightness(1); }
       }
-      @keyframes crackFlare {
-        0%   { opacity: .85; }
-        55%  { opacity: 1; }
-        72%  { opacity: 1; }
-        100% { opacity: 0; }
+      /* ...and goes white-hot as the pieces meet, then fades out welded */
+      @keyframes weldSeam {
+        0%   { opacity: .45; filter: brightness(1); }
+        70%  { opacity: .9;  filter: brightness(1.8); }
+        84%  { opacity: 1;   filter: brightness(3.4) drop-shadow(0 0 7px #FFFFFF); }
+        92%  { opacity: .8;  filter: brightness(2.2); }
+        100% { opacity: 0;   filter: brightness(1); }
       }
       @keyframes padBloom {
         0%, 100% { transform: scaleX(1);    opacity: .8; }
