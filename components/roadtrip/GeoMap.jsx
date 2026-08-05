@@ -21,8 +21,8 @@ import { useC } from "../../lib/theme";
    there is nothing to break — and as a bonus they take their colours
    straight from the theme.
 
-   The map is decoration. Tiles need a network connection, and US-19 has
-   real dead zones. Everything that actually matters — spotting zones,
+   The map is decoration. Tiles need a network connection, and these
+   roads have real dead zones. Everything that actually matters — spotting zones,
    queueing questions, scoring — is pure maths and keeps working when
    the tiles do not load.
    ============================================================ */
