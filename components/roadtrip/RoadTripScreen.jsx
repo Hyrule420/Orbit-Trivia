@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { ArrowLeft, MapPin, Navigation, Trophy, Check, AlertTriangle, Play, Radio, RotateCcw, Map as MapIcon } from "lucide-react";
+import { ArrowLeft, MapPin, Navigation, Trophy, Check, AlertTriangle, Play, Radio, RotateCcw, ChevronRight, Repeat, Map as MapIcon } from "lucide-react";
 import { useC } from "../../lib/theme";
 import { TIER_META } from "../../lib/questions";
 import { buzz } from "../../lib/util";
-import { CORRIDOR, ROUTE, GEO_QUESTIONS, GEO_BY_ID } from "../../lib/geoQuestions";
+import { CORRIDORS, CORRIDOR_BY_ID, DEFAULT_CORRIDOR_ID } from "../../lib/corridors";
 import { checkPack } from "../../lib/geo";
 import { usePositionSource } from "../../lib/usePositionSource";
 import { useZoneWatcher } from "../../lib/useZoneWatcher";
@@ -58,12 +58,76 @@ async function loadJSON(key, fallback) {
 async function saveJSON(key, value) {
   try { await window.storage.set(key, JSON.stringify(value)); } catch (e) { /* session only */ }
 }
+async function loadRaw(key) {
+  try {
+    const v = await window.storage.get(key);
+    return v?.value ?? null;
+  } catch (e) {
+    return null;
+  }
+}
+async function saveRaw(key, value) {
+  try { await window.storage.set(key, String(value)); } catch (e) { /* session only */ }
+}
+
+/* Progress is stored per corridor, so driving US-19 and driving the
+   Space Coast keep separate queues, scores and answered lists. */
+const tripKey = (corridorId) => `orbit:geo:trip:${corridorId}`;
+const seenKey = (corridorId) => `orbit:geo:seen:${corridorId}`;
+
+/* ------------------------------------------------------------
+   Before corridors existed there was only one road, and its progress
+   lived at the un-suffixed keys. Anyone who has already played has
+   their Nature Coast history there.
+
+   So: the first time we look for a corridor's progress and find
+   nothing, fall back to the old key and copy it across. Skipping this
+   would silently mark every place they had answered as unanswered
+   again — no error, no warning, just lost progress.
+
+   Only the Nature Coast can have old-format data; it was the only
+   corridor that ever existed.
+   ------------------------------------------------------------ */
+async function loadCorridorProgress(corridorId) {
+  const isLegacyCorridor = corridorId === "nature-coast";
+
+  let trip = await loadJSON(tripKey(corridorId), null);
+  let seen = await loadJSON(seenKey(corridorId), null);
+
+  if (isLegacyCorridor && trip === null && seen === null) {
+    const oldTrip = await loadRaw("orbit:geo:trip");
+    const oldSeen = await loadRaw("orbit:geo:seen");
+    if (oldTrip !== null || oldSeen !== null) {
+      trip = await loadJSON("orbit:geo:trip", null);
+      seen = await loadJSON("orbit:geo:seen", null);
+      /* Write it forward so this only ever happens once. The old keys
+         are left alone rather than deleted — they cost nothing, and
+         keeping them means an older build of the app still works if
+         someone ends up back on one. */
+      if (trip !== null) await saveJSON(tripKey(corridorId), trip);
+      if (seen !== null) await saveJSON(seenKey(corridorId), seen);
+    }
+  }
+
+  return { trip, seen: seen ?? [] };
+}
 
 export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, geoBest = 0 }) {
   const C = useC();
 
-  const [view, setView] = useState("intro");
+  const [view, setView] = useState("picker");
   const [loaded, setLoaded] = useState(false);
+  /* Screen-local boot: we need last-corridor out of storage before
+     loading any progress, or we'd load the default corridor's data and
+     then immediately throw it away. */
+  const [booted, setBooted] = useState(false);
+  const [pickerCounts, setPickerCounts] = useState({});
+
+  /* Which road we're driving. Everything about a region — its route,
+     its zones, its map framing — hangs off this one object, so
+     switching corridors is just switching this id. */
+  const [corridorId, setCorridorId] = useState(DEFAULT_CORRIDOR_ID);
+  const corridor = CORRIDOR_BY_ID[corridorId] || CORRIDOR_BY_ID[DEFAULT_CORRIDOR_ID];
 
   const [queue, setQueue] = useState([]);          // zone ids waiting
   const [answered, setAnswered] = useState({});    // id -> { correct, points }
@@ -79,50 +143,78 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
   const saveTimerRef = useRef(null);
   const wakeLockRef = useRef(null);
 
-  const { pos, status, error, errorCode, source, simPlaying, simSpeed, setSimSpeed, api } = usePositionSource(ROUTE);
+  const { pos, status, error, errorCode, source, simPlaying, simSpeed, setSimSpeed, api } = usePositionSource(corridor.route);
 
   /* ---------- content sanity check, development only ---------- */
   useEffect(() => {
     if (process.env.NODE_ENV === "production") return;
-    const problems = checkPack(GEO_QUESTIONS, ROUTE, CORRIDOR.bounds);
+    const problems = checkPack(corridor.zones, corridor.route, corridor.bounds);
     if (problems.length) {
-      console.warn("[Road Trip] question pack problems:\n" + problems.join("\n"));
+      console.warn(`[Road Trip] ${corridor.name} pack problems:\n` + problems.join("\n"));
     }
-  }, []);
+  }, [corridor]);
 
-  /* ---------- load saved progress ---------- */
+  /* ---------- load saved progress for whichever corridor is active ----------
+     This re-runs on every corridor switch, which is what keeps the two
+     roads' progress genuinely separate. `loaded` drops to false first so
+     the save effect below can't fire with one corridor's state under
+     another corridor's key. */
+  /* ---------- once: which road were we last on, and how far through
+     is each of them? Both are needed before the picker can render. ---------- */
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const trip = await loadJSON("orbit:geo:trip", null);
-      const seenIds = await loadJSON("orbit:geo:seen", []);
-      if (cancelled) return;
-      if (trip) {
-        setQueue(Array.isArray(trip.queue) ? trip.queue : []);
-        setAnswered(trip.answered && typeof trip.answered === "object" ? trip.answered : {});
-        setSkipped(Array.isArray(trip.skipped) ? trip.skipped : []);
-        setPoints(Number(trip.points) || 0);
+      const counts = {};
+      for (const c of CORRIDORS) {
+        const { seen } = await loadCorridorProgress(c.id);
+        counts[c.id] = Array.isArray(seen) ? seen.length : 0;
       }
-      setSeen(Array.isArray(seenIds) ? seenIds : []);
-      setLoaded(true);
+      const last = await loadRaw("orbit:geo:corridor");
+      if (cancelled) return;
+      setPickerCounts(counts);
+      if (last && CORRIDOR_BY_ID[last]) setCorridorId(last);
+      setBooted(true);
     })();
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (!booted) return;
+    let cancelled = false;
+    setLoaded(false);
+    (async () => {
+      const lastCorridor = await loadRaw("orbit:geo:corridor");
+      const { trip, seen: seenIds } = await loadCorridorProgress(corridorId);
+      if (cancelled) return;
+
+      setQueue(trip && Array.isArray(trip.queue) ? trip.queue : []);
+      setAnswered(trip && trip.answered && typeof trip.answered === "object" ? trip.answered : {});
+      setSkipped(trip && Array.isArray(trip.skipped) ? trip.skipped : []);
+      setPoints(trip ? Number(trip.points) || 0 : 0);
+      setSeen(Array.isArray(seenIds) ? seenIds : []);
+
+      /* Remember which road they were last on, so returning players go
+         straight back to it. */
+      if (lastCorridor !== corridorId) saveRaw("orbit:geo:corridor", corridorId);
+      setLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, [booted, corridorId]);
 
   /* ---------- save progress, but not on every keystroke ---------- */
   useEffect(() => {
     if (!loaded) return;
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      saveJSON("orbit:geo:trip", { queue, answered, skipped, points, startedAt: Date.now() });
-      saveJSON("orbit:geo:seen", seen);
+      saveJSON(tripKey(corridorId), { queue, answered, skipped, points, startedAt: Date.now() });
+      saveJSON(seenKey(corridorId), seen);
     }, SAVE_DEBOUNCE_MS);
     return () => clearTimeout(saveTimerRef.current);
-  }, [loaded, queue, answered, skipped, points, seen]);
+  }, [loaded, corridorId, queue, answered, skipped, points, seen]);
 
   /* ---------- if location was already granted, don't re-explain ---------- */
   useEffect(() => {
-    if (loaded && optedIn && view === "intro") {
+    if (loaded && optedIn && view === "picker") {
       setView("map");
       api.startGps();
     }
@@ -194,7 +286,7 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
   }, []);
 
   const { nearest, resetInside } = useZoneWatcher({
-    pos, zones: GEO_QUESTIONS, skipIds, onEnter: handleEnter,
+    pos, zones: corridor.zones, skipIds, onEnter: handleEnter,
   });
 
   /* ---------- answering ---------- */
@@ -261,28 +353,28 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
     setPoints(0);
     recentArrivalsRef.current = [];
     resetInside();
-    await saveJSON("orbit:geo:seen", []);
-    await saveJSON("orbit:geo:trip", { queue: [], answered: {}, skipped: [], points: 0 });
-  }, [resetInside]);
+    await saveJSON(seenKey(corridorId), []);
+    await saveJSON(tripKey(corridorId), { queue: [], answered: {}, skipped: [], points: 0 });
+  }, [resetInside, corridorId]);
 
   const answeredIds = useMemo(() => Object.keys(answered), [answered]);
   const correctCount = useMemo(
     () => Object.values(answered).filter((a) => a.correct).length,
     [answered]
   );
-  const remaining = GEO_QUESTIONS.length - seen.length;
+  const remaining = corridor.zones.length - seen.length;
 
   /* ============================================================
      VIEWS
      ============================================================ */
 
-  if (view === "card" && playing && GEO_BY_ID[playing]) {
+  if (view === "card" && playing && corridor.byId[playing]) {
     return (
       /* key resets the card's internal "which answer did you pick"
          state when we move on to the next question in the queue */
       <GeoQuestionCard
         key={playing}
-        zone={GEO_BY_ID[playing]}
+        zone={corridor.byId[playing]}
         queueRemaining={queue.filter((id) => id !== playing).length}
         onAnswered={recordAnswer}
         onNext={playNext}
@@ -296,6 +388,7 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
       <QueueList
         queue={queue}
         answered={answered}
+        byId={corridor.byId}
         onPlay={playNow}
         onSkip={skipOne}
         onBack={() => setView("map")}
@@ -308,7 +401,7 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
     return (
       <div className="min-h-screen max-w-md mx-auto px-4 pt-8 pb-8">
         <div className="text-center mb-6">
-          <Kicker color={C.ion}>{CORRIDOR.name.toUpperCase()} · {CORRIDOR.road}</Kicker>
+          <Kicker color={C.ion}>{corridor.name.toUpperCase()} · {corridor.road}</Kicker>
           <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 28, color: C.star, marginTop: 6 }}>
             Trip complete
           </div>
@@ -347,7 +440,7 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
             <Kicker color={C.plasma}>PACK COMPLETE</Kicker>
             <p className="text-sm mt-2" style={{ color: C.dim, lineHeight: 1.6 }}>
               You&apos;ve answered every question on the Nature Coast. Reset your history to drive it again,
-              or add more places to <code>lib/geoQuestions.js</code>.
+              or add more places to <code>lib/corridors/</code>.
             </p>
           </Panel>
         )}
@@ -367,15 +460,85 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
     );
   }
 
-  /* ---------- intro ---------- */
-  if (view === "intro") {
-    const noApi = typeof navigator !== "undefined" && !("geolocation" in navigator);
+  /* ---------- pick a road ---------- */
+  if (view === "picker") {
     return (
       <div className="min-h-screen max-w-md mx-auto px-4 pt-5 pb-8">
         <button onClick={onHome} className="flex items-center gap-2 mb-6 active:scale-95" style={{ color: C.dim }}>
           <ArrowLeft size={17} />
           <Kicker>LAUNCHPAD</Kicker>
         </button>
+
+        <h1 style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 26, color: C.star }}>
+          Pick your road
+        </h1>
+        <p className="text-sm mt-1 mb-6" style={{ color: C.dim, lineHeight: 1.6 }}>
+          Each one keeps its own score and remembers which places you&apos;ve already answered.
+        </p>
+
+        <div className="flex flex-col gap-3">
+          {CORRIDORS.map((c) => {
+            const done = pickerCounts[c.id] ?? 0;
+            const total = c.zones.length;
+            const complete = done >= total;
+            return (
+              <button
+                key={c.id}
+                onClick={() => { setCorridorId(c.id); setView("intro"); }}
+                className="text-left active:scale-95 w-full"
+              >
+                <Panel className="p-5" style={{ borderColor: c.id === corridorId ? `${C.ion}66` : C.edge }}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <MapPin size={15} style={{ color: complete ? C.thrust : C.ion }} />
+                        <Kicker color={complete ? C.thrust : C.ion}>
+                          {complete ? "ALL ANSWERED" : c.road}
+                        </Kicker>
+                      </div>
+                      <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, color: C.star }}>
+                        {c.name}
+                      </div>
+                      <div className="text-sm mt-1" style={{ color: C.dim, lineHeight: 1.5 }}>
+                        {c.tagline}
+                      </div>
+
+                      {/* how far through this road you are */}
+                      <div className="flex items-center gap-2 mt-3">
+                        <div style={{ flex: 1, height: 3, borderRadius: 2, background: C.edge, overflow: "hidden" }}>
+                          <div style={{ width: `${total ? (done / total) * 100 : 0}%`, height: "100%", background: complete ? C.thrust : C.ion }} />
+                        </div>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.dim }}>
+                          {done}/{total}
+                        </span>
+                      </div>
+                    </div>
+                    <ChevronRight size={20} style={{ color: C.dim, marginTop: 20, flexShrink: 0 }} />
+                  </div>
+                </Panel>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  /* ---------- intro ---------- */
+  if (view === "intro") {
+    const noApi = typeof navigator !== "undefined" && !("geolocation" in navigator);
+    return (
+      <div className="min-h-screen max-w-md mx-auto px-4 pt-5 pb-8">
+        <div className="flex items-center justify-between mb-6">
+          <button onClick={onHome} className="flex items-center gap-2 active:scale-95" style={{ color: C.dim }}>
+            <ArrowLeft size={17} />
+            <Kicker>LAUNCHPAD</Kicker>
+          </button>
+          <button onClick={() => setView("picker")} className="flex items-center gap-2 active:scale-95" style={{ color: C.dim }}>
+            <Repeat size={14} />
+            <Kicker>CHANGE ROAD</Kicker>
+          </button>
+        </div>
 
         <div className="flex justify-center mb-5">
           <div
@@ -387,7 +550,7 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
         </div>
 
         <div className="text-center mb-2">
-          <Kicker color={C.ion}>{CORRIDOR.name.toUpperCase()} · {CORRIDOR.road}</Kicker>
+          <Kicker color={C.ion}>{corridor.name.toUpperCase()} · {corridor.road}</Kicker>
         </div>
         <h1
           className="text-center mb-3"
@@ -396,9 +559,8 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
           Road Trip Florida
         </h1>
         <p className="text-center text-sm mb-6" style={{ color: C.dim, lineHeight: 1.65 }}>
-          Drive US-19 between Fanning Springs and Tarpon Springs and questions unlock as you pass real
-          places — the springs, the manatees, the mermaids, the canal that was never finished, and the
-          Greek sponge divers at the end of the road.
+          {corridor.tagline} Questions unlock as you drive past the real places along {corridor.road}
+          {" "}— {corridor.zones.length} of them on this road.
         </p>
 
         <Panel className="p-4 mb-4">
@@ -448,8 +610,8 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
   }
 
   /* ---------- the live trip ---------- */
-  const arrivalZone = arrival ? GEO_BY_ID[arrival] : null;
-  const toastZone = toast ? GEO_BY_ID[toast] : null;
+  const arrivalZone = arrival ? corridor.byId[arrival] : null;
+  const toastZone = toast ? corridor.byId[toast] : null;
   const simulating = source === "sim" || source === "manual";
   const offCorridor = nearest && nearest.distanceM > 80000;
 
@@ -535,17 +697,17 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
           </Kicker>
         </span>
         <span style={{ color: C.dim, fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>
-          {seen.length}/{GEO_QUESTIONS.length} ANSWERED
+          {seen.length}/{corridor.zones.length} ANSWERED
         </span>
       </div>
 
       <MapPanel
-        route={ROUTE}
-        zones={GEO_QUESTIONS}
+        route={corridor.route}
+        zones={corridor.zones}
         pos={pos}
         answeredIds={seen}
         queuedIds={queue}
-        bounds={CORRIDOR.bounds}
+        bounds={corridor.bounds}
         mars={C.id === "mars"}
         height={300}
         onTeleport={simulating ? api.teleport : undefined}
@@ -615,7 +777,7 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
         <Btn full variant="ghost" onClick={endTrip}>End trip</Btn>
       </div>
 
-      <QueueBar queue={queue} nearest={nearest} onOpen={() => setView("queue")} />
+      <QueueBar queue={queue} nearest={nearest} byId={corridor.byId} onOpen={() => setView("queue")} />
 
       {toastZone && !arrivalZone && (
         <ArrivalToast zone={toastZone} onDone={() => setToast(null)} />
