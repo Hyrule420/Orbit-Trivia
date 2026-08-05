@@ -17,12 +17,13 @@ import GeoQuestionCard from "./GeoQuestionCard";
 import { QueueBar, QueueList, ArrivalToast } from "./QueueBar";
 
 /* ============================================================
-   ROAD TRIP FLORIDA — the Nature Coast mode.
+   ROAD TRIP FLORIDA — the GPS mode.
 
    This screen owns everything about a trip: where we are, which
    questions are waiting, what has been answered, and the score.
 
    Views it moves between:
+     picker   choose which road to drive
      intro    explain what we're about to do, and ask for location
      map      the live trip — this is where you spend the drive
      queue    the list of questions collected so far
@@ -470,8 +471,8 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
           <Panel className="p-4 mb-4" style={{ borderColor: `${C.plasma}55` }}>
             <Kicker color={C.plasma}>PACK COMPLETE</Kicker>
             <p className="text-sm mt-2" style={{ color: C.dim, lineHeight: 1.6 }}>
-              You&apos;ve answered every question on the Nature Coast. Reset your history to drive it again,
-              or add more places to <code>lib/corridors/</code>.
+              You&apos;ve answered every question on the {corridor.name}. Reset your history to drive it
+              again, pick another road, or add more places to <code>lib/corridors/</code>.
             </p>
           </Panel>
         )}
@@ -703,6 +704,10 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
           <Kicker>LAUNCHPAD</Kicker>
         </button>
         <div className="flex items-center gap-3">
+          <button onClick={() => setView("picker")} className="flex items-center gap-1.5 active:scale-95" style={{ color: C.dim }}>
+            <Repeat size={13} />
+            <Kicker>ROAD</Kicker>
+          </button>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 15, fontWeight: 700, color: C.ion }}>
             {points}
           </span>
@@ -710,7 +715,11 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
         </div>
       </div>
 
-      {/* Status line: what's driving the position right now */}
+      {/* Status line: what's driving the position right now, and how to
+          change it. The simulated drive used to live only on the intro
+          screen, which returning players never see again once they've
+          granted location — so it became unreachable. It belongs here,
+          next to the thing it switches. */}
       <div className="flex items-center gap-2 mb-3">
         <span
           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full"
@@ -727,8 +736,20 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
               : "IDLE"}
           </Kicker>
         </span>
+
+        <button
+          onClick={simulating ? startGpsTrip : startSimTrip}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full active:scale-95"
+          style={{ background: `${C.edge}66`, border: `1px solid ${C.edge}` }}
+        >
+          {simulating
+            ? <Navigation size={11} style={{ color: C.dim }} />
+            : <Play size={11} style={{ color: C.dim }} />}
+          <Kicker>{simulating ? "USE GPS" : "SIMULATE"}</Kicker>
+        </button>
+
         <span style={{ color: C.dim, fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>
-          {seen.length}/{corridor.zones.length} ANSWERED
+          {seen.length}/{corridor.zones.length}
         </span>
       </div>
 
@@ -771,11 +792,18 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
 
       {offCorridor && (
         <Panel className="p-4 mt-3" style={{ borderColor: `${C.plasma}55` }}>
-          <Kicker color={C.plasma}>A LONG WAY FROM THE NATURE COAST</Kicker>
+          <Kicker color={C.plasma}>A LONG WAY FROM THE {corridor.name.toUpperCase()}</Kicker>
           <p className="text-sm mt-2" style={{ color: C.dim, lineHeight: 1.6 }}>
             Nearest question is {nearest.zone.place}, {formatDistance(nearest.distanceM)} away.
-            This pack only covers US-19 — take the simulated drive to see it working.
+            This road only covers {corridor.road} — take the simulated drive to see it working,
+            or pick a different road.
           </p>
+          <div className="flex gap-2 mt-3">
+            <Btn onClick={startSimTrip}>
+              <span className="inline-flex items-center gap-2"><Play size={14} /> Simulated drive</span>
+            </Btn>
+            <Btn variant="ghost" onClick={() => setView("picker")}>Change road</Btn>
+          </div>
         </Panel>
       )}
 
