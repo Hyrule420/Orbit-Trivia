@@ -5,7 +5,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 /* ============================================================
    STARSHIP + MECHAZILLA — the Home screen hero.
 
-   The flight itself is NOT owned here. components/OrbitTrivia.jsx
+   The flight itself is NOT owned here. components/home/Home.jsx
    drives the launch frame by frame (tapRocket -> ascend -> descend)
    because a mode card has to break on the exact frame the nose
    crosses it, and it writes the ship's transform straight onto
@@ -18,10 +18,11 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
      flight  a ref, written every frame by Home's rAF, never state,
              so the cards don't re-render 60 times a second.
 
-   Palette is passed in as a prop, not read from context. OrbitTrivia.jsx
-   keeps a private copy of ThemeCtx (see the note at its line 61), so a
-   useC() imported from lib/theme here would resolve to a different
-   context and silently render Moon on every theme.
+   Palette is passed in as a prop rather than read from context. That
+   used to be load-bearing: OrbitTrivia.jsx kept a private ThemeCtx, so
+   a useC() from lib/theme would have resolved to a different context
+   and silently rendered Moon on every theme. There is one context now,
+   so useC() would work here — the prop simply hasn't been changed.
    ============================================================ */
 
 /* ---------- colour helpers ---------- */
@@ -251,7 +252,7 @@ function Plume({ power, flicker, mix, alt }) {
    Turns Home's coarse phase plus the live altitude into everything
    the artwork needs. Kept pure so it can be reasoned about on its own.
    ============================================================ */
-const IGNITION_MS = 850; // must match LAUNCH.ignitionMs in OrbitTrivia.jsx
+const IGNITION_MS = 850; // must match LAUNCH.ignitionMs in components/home/launch.js
 
 function flightModel(phase, tMs, alt) {
   const t = tMs / 1000;
