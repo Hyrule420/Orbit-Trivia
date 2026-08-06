@@ -12,6 +12,7 @@ import { checkPack } from "../../lib/geo";
 import { usePositionSource } from "../../lib/usePositionSource";
 import { useZoneWatcher } from "../../lib/useZoneWatcher";
 import { Btn, Panel, Kicker, formatDistance } from "./ui";
+import Confirm from "../ui/Confirm";
 import DevControls from "./DevControls";
 import MapPanel from "./MapPanel";
 import ArrivalPopup from "./ArrivalPopup";
@@ -145,10 +146,15 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
   const [toast, setToast] = useState(null);        // zone id showing the small toast
   const [playing, setPlaying] = useState(null);    // zone id being answered
   const [padFx, setPadFx] = useState(null);        // zone id running a full-screen sequence
+  const [confirmReset, setConfirmReset] = useState(false);
 
   const recentArrivalsRef = useRef([]);
   const saveTimerRef = useRef(null);
   const wakeLockRef = useRef(null);
+  /* Ending a trip stops the position source, which clears `source`.
+     Remembered here so the summary screen can put you back on whichever
+     one you were actually using. */
+  const lastSourceRef = useRef(null);
 
   const { pos, status, error, errorCode, source, simPlaying, simSpeed, setSimSpeed, api } = usePositionSource(corridor.route);
 
@@ -390,10 +396,21 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
 
   const endTrip = useCallback(() => {
     setPadFx(null);
+    lastSourceRef.current = source;
     api.stop();
     onTripEnd?.(points);
     setView("summary");
-  }, [api, onTripEnd, points]);
+  }, [api, onTripEnd, points, source]);
+
+  /* Put the car back on the road after the trip was stopped. Without
+     this, both ways back to the map from the summary dropped you onto a
+     dead one: endTrip calls api.stop(), which clears the source, so
+     nothing was driving and no zone could ever fire again. */
+  const resumeDriving = useCallback((fromStart) => {
+    if (lastSourceRef.current === "gps") { api.startGps(); return; }
+    if (fromStart) api.restartSim();
+    api.startSim();
+  }, [api]);
 
   const resetHistory = useCallback(async () => {
     setSeen([]);
@@ -407,6 +424,16 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
     await saveJSON(seenKey(corridorId), []);
     await saveJSON(tripKey(corridorId), { queue: [], answered: {}, skipped: [], points: 0 });
   }, [resetInside, corridorId]);
+
+  /* Wipe the road and drive it from the top. This is the one that makes
+     the mode replayable — without it, every place you have ever answered
+     is in `seen` forever and the road goes quiet on the second lap. */
+  const driveAgain = useCallback(async () => {
+    setConfirmReset(false);
+    await resetHistory();
+    setView("map");
+    resumeDriving(true);
+  }, [resetHistory, resumeDriving]);
 
   const answeredIds = useMemo(() => Object.keys(answered), [answered]);
   const correctCount = useMemo(
@@ -490,23 +517,39 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
           <Panel className="p-4 mb-4" style={{ borderColor: `${C.plasma}55` }}>
             <Kicker color={C.plasma}>PACK COMPLETE</Kicker>
             <p className="text-sm mt-2" style={{ color: C.dim, lineHeight: 1.6 }}>
-              You&apos;ve answered every question on the {corridor.name}. Reset your history to drive it
-              again, pick another road, or add more places to <code>lib/corridors/</code>.
+              You&apos;ve answered every question on the {corridor.name}. Drive it again to put every
+              place back on the board, pick another road, or add more to <code>lib/corridors/</code>.
             </p>
           </Panel>
         )}
 
         <div className="flex flex-col gap-2">
-          <Btn full onClick={onHome}>Back to the launchpad</Btn>
-          <Btn full variant="ghost" onClick={() => setView("map")}>Keep driving</Btn>
-          <button
-            onClick={resetHistory}
-            className="mt-2 inline-flex items-center justify-center gap-2 active:scale-95"
-            style={{ color: C.dim, fontSize: 12, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.12em" }}
-          >
-            <RotateCcw size={12} /> RESET TRIP HISTORY
-          </button>
+          <Btn full onClick={() => setConfirmReset(true)}>
+            <span className="inline-flex items-center justify-center gap-2">
+              <RotateCcw size={15} /> Drive it again
+            </span>
+          </Btn>
+          <Btn full variant="ghost" onClick={() => { setView("map"); resumeDriving(false); }}>
+            Keep driving
+          </Btn>
+          <Btn full variant="ghost" onClick={onHome}>Back to the launchpad</Btn>
         </div>
+
+        {confirmReset && (
+          <Confirm
+            icon={RotateCcw}
+            tone={C.plasma}
+            title="Recycle the count?"
+            confirmLabel="Recycle — drive it again"
+            cancelLabel="Hold the count"
+            onConfirm={driveAgain}
+            onCancel={() => setConfirmReset(false)}
+          >
+            Every place on the {corridor.name} goes back on the board — answered, skipped, all
+            {" "}{corridor.zones.length} of them — and the score drops to zero. Your best run and every
+            other road are untouched.
+          </Confirm>
+        )}
       </div>
     );
   }
