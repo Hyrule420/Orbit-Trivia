@@ -293,7 +293,7 @@ export default function GlobalStyles() {
          stays compositor-only like everything else in this block. */
       @keyframes sc-crawl {
         0%   { transform: translateX(0); }
-        100% { transform: translateX(calc(100vw + 320px)); }
+        100% { transform: translateX(calc(100vw + 420px)); }
       }
       /* The flash the shock front puts across everything for a frame or two. */
       @keyframes sc-flash {
