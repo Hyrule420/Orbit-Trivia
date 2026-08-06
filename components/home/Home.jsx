@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Rocket, Users, Trophy, ChevronRight, Flame, Target, Repeat, User, Volume2, VolumeX } from "lucide-react";
+import { Rocket, Users, Trophy, ChevronRight, Flame, Target, Repeat, User, Volume2, VolumeX, MapPin } from "lucide-react";
 import { useC } from "../../lib/theme";
 import { buzz } from "../../lib/util";
 import { SFX } from "../../lib/sfx";
@@ -15,7 +15,7 @@ import InstallHint from "../ui/InstallHint";
 import CardCracks from "./CardCracks";
 import { CARD_SHARDS, LAUNCH } from "./launch";
 
-export default function Home({ onDaily, onCustom, onEscape, escapeBest = 0, stats, dailyDone, onSwapTheme, themeName, profile, dayStreak, onOpenProfile, streakMilestone, onDismissMilestone, soundOn, onToggleSound, showInstall, onDismissInstall, androidPrompt }) {
+export default function Home({ onDaily, onCustom, onEscape, onGeoTrip, geoBest = 0, escapeBest = 0, stats, dailyDone, onSwapTheme, themeName, profile, dayStreak, onOpenProfile, streakMilestone, onDismissMilestone, soundOn, onToggleSound, showInstall, onDismissInstall, androidPrompt }) {
   const C = useC();
   const named = (profile.name || "").trim();
 
@@ -308,6 +308,31 @@ export default function Home({ onDaily, onCustom, onEscape, escapeBest = 0, stat
                       </div>
                       <div className="text-sm mt-1" style={{ color: C.dim }}>
                         Keep answering, keep accelerating. Reach 11.2 km/s to break free.
+                      </div>
+                    </div>
+                    <ChevronRight size={20} style={{ color: C.dim, marginTop: 20 }} />
+                  </div>
+                </Panel>
+              ),
+            },
+            {
+              key: "geotrip",
+              onTap: onGeoTrip,
+              card: (
+                <Panel className="p-5" style={{ borderColor: `${C.thrust}44` }}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <MapPin size={16} style={{ color: C.thrust }} />
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.thrust, letterSpacing: "0.18em" }}>
+                          {geoBest > 0 ? `BEST ${geoBest} PTS` : "NATURE COAST"}
+                        </span>
+                      </div>
+                      <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, color: C.star }}>
+                        Road Trip Florida
+                      </div>
+                      <div className="text-sm mt-1" style={{ color: C.dim }}>
+                        Questions unlock as you drive past real places on US-19.
                       </div>
                     </div>
                     <ChevronRight size={20} style={{ color: C.dim, marginTop: 20 }} />

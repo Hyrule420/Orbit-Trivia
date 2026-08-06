@@ -17,6 +17,7 @@ import Results from "@/components/screens/Results";
 import EscapeResults from "@/components/screens/EscapeResults";
 import Game from "@/components/Game";
 import Home from "@/components/home/Home";
+import RoadTripScreen from "@/components/roadtrip/RoadTripScreen";
 
 
 /* ============================================================
@@ -43,6 +44,11 @@ export default function OrbitTrivia() {
   const [streakMilestone, setStreakMilestone] = useState(null);
   const [soundOn, setSoundOn] = useState(true);
   const [escapeBest, setEscapeBest] = useState(0);
+  /* The road trip keeps its own best score and its own "yes to location"
+     flag. Deliberately separate from `stats` — an untimed, open-ended mode
+     would make the timed-run numbers meaningless if it were mixed in. */
+  const [geoBest, setGeoBest] = useState(0);
+  const [geoOptIn, setGeoOptIn] = useState(false);
   const [installDismissed, setInstallDismissed] = useState(false);
   const [androidEvt, setAndroidEvt] = useState(null);
 
@@ -143,6 +149,14 @@ export default function OrbitTrivia() {
         const ih = await storage.get("orbit:installhint");
         if (ih?.value === "off") setInstallDismissed(true);
       } catch (e) { /* never dismissed */ }
+      try {
+        const gb = await storage.get("orbit:geo:best");
+        if (gb?.value) setGeoBest(parseInt(gb.value, 10) || 0);
+      } catch (e) { /* no road trip yet */ }
+      try {
+        const go = await storage.get("orbit:geo:optin");
+        if (go?.value === "on") setGeoOptIn(true);
+      } catch (e) { /* never agreed to share location */ }
       setBooted(true);
     })();
   }, []);
@@ -177,8 +191,25 @@ export default function OrbitTrivia() {
     try { await storage.set("orbit:stats", JSON.stringify(next)); } catch (e) { /* session only */ }
   };
 
+  const saveGeoBest = async (pts) => {
+    if (!(pts > geoBest)) return;
+    setGeoBest(pts);
+    try { await storage.set("orbit:geo:best", String(pts)); } catch (e) { /* session only */ }
+  };
+
+  const saveGeoOptIn = async () => {
+    setGeoOptIn(true);
+    try { await storage.set("orbit:geo:optin", "on"); } catch (e) { /* session only */ }
+  };
+
   const afterDrivingCheck = () => {
     const who = (profile.name || "").trim() || "You";
+    if (pendingMode === "geotrip") {
+      /* Road trip doesn't use the Game component at all, so there is no
+         deck to build and no run to key — it just opens its own screen. */
+      setScreen("geotrip");
+      return;
+    }
     if (pendingMode === "daily") {
       setMode("daily");
       setConfig({ players: [who], timer: 20, sameQ: true, count: 10, pool: QUESTIONS, difficulty: "Mixed", cats: [] });
@@ -268,6 +299,8 @@ export default function OrbitTrivia() {
             onDaily={() => { setPendingMode("daily"); setScreen("driving"); }}
             onCustom={() => { setPendingMode("custom"); setScreen("driving"); }}
             onEscape={() => { setPendingMode("escape"); setScreen("driving"); }}
+            onGeoTrip={() => { setPendingMode("geotrip"); setScreen("driving"); }}
+            geoBest={geoBest}
             escapeBest={escapeBest}
             stats={stats}
             dailyDone={dailyDone}
@@ -296,6 +329,8 @@ export default function OrbitTrivia() {
               onDaily={() => {}}
               onCustom={() => {}}
               onEscape={() => {}}
+              onGeoTrip={() => {}}
+              geoBest={geoBest}
               escapeBest={escapeBest}
               stats={stats}
               dailyDone={dailyDone}
@@ -320,6 +355,16 @@ export default function OrbitTrivia() {
           <CustomSetup
             onBack={() => setScreen("home")}
             onStart={(cfg) => { setMode("custom"); setConfig(cfg); setRunKey((k) => k + 1); setScreen("game"); }}
+          />
+        )}
+
+        {screen === "geotrip" && (
+          <RoadTripScreen
+            onHome={() => setScreen("home")}
+            optedIn={geoOptIn}
+            onOptIn={saveGeoOptIn}
+            onTripEnd={saveGeoBest}
+            geoBest={geoBest}
           />
         )}
 
