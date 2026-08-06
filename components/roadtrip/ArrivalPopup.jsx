@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from "react";
 import { MapPin, ChevronRight, Clock } from "lucide-react";
 import { useC } from "../../lib/theme";
 import { TIER_META } from "../../lib/questions";
+import { heavyDay } from "../../lib/day";
 import { Btn, Kicker } from "./ui";
 
 /* ============================================================
@@ -27,7 +28,7 @@ import { Btn, Kicker } from "./ui";
 
 const AUTO_QUEUE_MS = 8000;
 
-export default function ArrivalPopup({ zone, queueCount, onPlayNow, onSaveForLater }) {
+export default function ArrivalPopup({ zone, queueCount, onPlayNow, onSaveForLater, bigFx = false }) {
   const C = useC();
   const timerRef = useRef(null);
   const tier = TIER_META[zone.d] || TIER_META.Earthbound;
@@ -37,6 +38,8 @@ export default function ArrivalPopup({ zone, queueCount, onPlayNow, onSaveForLat
      launch pad feels different from arriving at a fishing village.
      Anything without one gets the plain entrance. */
   const isPad = zone.kind === "pad";
+  /* Two boosters coming home instead of one — see heavyDay() in lib/day.js. */
+  const isHeavy = zone.fx === "landing" && heavyDay();
   const entrance = isPad
     ? "nc-rise .42s cubic-bezier(.16,1,.3,1) both, nc-glow 1.4s ease-out both"
     : zone.kind === "wildlife"
@@ -125,7 +128,14 @@ export default function ArrivalPopup({ zone, queueCount, onPlayNow, onSaveForLat
           there rather than on top of the interface. */}
       {/* Offset high enough to clear the card, so the rocket climbs up
           across the map rather than being hidden behind the interface. */}
-      {isPad && (
+      {/* Stood down when the full-screen sequence is flying its own,
+          much larger vehicle over the top of this one (see
+          components/roadtrip/PadLaunchFX.jsx). Two rockets at two
+          different scales in the same frame reads as a rendering fault,
+          not as depth. The VAB and the Crawlerway have no sequence, so
+          they keep this one — as does every pad when the player has
+          motion turned down to Subtle. */}
+      {isPad && !bigFx && (
         <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center pointer-events-none" style={{ paddingBottom: 310 }}>
           <div className="relative" style={{ width: 40, height: 120 }}>
             <div
@@ -258,6 +268,12 @@ export default function ArrivalPopup({ zone, queueCount, onPlayNow, onSaveForLat
                 >
                   {zone.blurb}
                 </p>
+
+                {isHeavy && (
+                  <div className="mt-2">
+                    <Kicker color={C.plasma}>HEAVY DAY · TWO COMING HOME</Kicker>
+                  </div>
+                )}
               </div>
             </div>
 

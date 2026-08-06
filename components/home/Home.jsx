@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Rocket, Users, Trophy, ChevronRight, Flame, Target, Repeat, User, Volume2, VolumeX, MapPin } from "lucide-react";
+import { Rocket, Users, Trophy, ChevronRight, Flame, Target, Repeat, User, Volume2, VolumeX, MapPin, Zap, ZapOff, Activity } from "lucide-react";
 import { useC } from "../../lib/theme";
+import { motionLabel, nextMotionLevel, useMotion } from "../../lib/motion";
 import { buzz } from "../../lib/util";
 import { SFX } from "../../lib/sfx";
 import StarshipHero from "../StarshipCatch";
@@ -15,8 +16,9 @@ import InstallHint from "../ui/InstallHint";
 import CardCracks from "./CardCracks";
 import { CARD_SHARDS, LAUNCH } from "./launch";
 
-export default function Home({ onDaily, onCustom, onEscape, onGeoTrip, geoBest = 0, escapeBest = 0, stats, dailyDone, onSwapTheme, themeName, profile, dayStreak, onOpenProfile, streakMilestone, onDismissMilestone, soundOn, onToggleSound, showInstall, onDismissInstall, androidPrompt }) {
+export default function Home({ onDaily, onCustom, onEscape, onGeoTrip, geoBest = 0, escapeBest = 0, stats, dailyDone, onSwapTheme, themeName, profile, dayStreak, onOpenProfile, streakMilestone, onDismissMilestone, soundOn, onToggleSound, motionLevel = "full", motionLocked = false, onCycleMotion, showInstall, onDismissInstall, androidPrompt }) {
   const C = useC();
+  const motion = useMotion();
   const named = (profile.name || "").trim();
 
   /* idle | ignition | ascent | hang | descent | weld */
@@ -57,11 +59,9 @@ export default function Home({ onDaily, onCustom, onEscape, onGeoTrip, geoBest =
     if (phase !== "idle") return;
     stopAll();
 
-    const reduced =
-      typeof window !== "undefined" &&
-      window.matchMedia &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduced) { SFX.ui(); buzz(20); return; }
+    /* Motion Off covers both the player's own setting and the device
+       asking for reduced motion — lib/motion.js folds the two together. */
+    if (motion.off) { SFX.ui(); buzz(20); return; }
 
     buzz([20, 30, 20, 40, 80]);
     SFX.engineUp(0.55);
@@ -189,6 +189,36 @@ export default function Home({ onDaily, onCustom, onEscape, onGeoTrip, geoBest =
                 ? <Volume2 size={14} style={{ color: C.ion }} />
                 : <VolumeX size={14} style={{ color: C.dim }} />}
             </button>
+
+            {/* How much spectacle the launch pads are allowed to throw at
+                you. Locked to Off — and not tappable — while the device
+                itself is asking for reduced motion, because pretending the
+                button still changes anything would be a lie. */}
+            <button
+              onClick={onCycleMotion}
+              disabled={motionLocked}
+              aria-label={
+                motionLocked
+                  ? "Motion off — your device is set to reduce motion"
+                  : `Motion: ${motionLabel(motionLevel)}. Switch to ${motionLabel(nextMotionLevel(motionLevel))}`
+              }
+              className="flex items-center justify-center rounded-xl active:scale-90"
+              style={{
+                width: 36,
+                height: 34,
+                background: C.hullLight,
+                border: `1px solid ${motionLevel === "full" ? `${C.ion}55` : motionLevel === "subtle" ? `${C.plasma}55` : C.edge}`,
+                opacity: motionLocked ? 0.5 : 1,
+                transition: "transform .12s, border-color .2s, opacity .2s",
+              }}
+            >
+              {motionLevel === "full"
+                ? <Zap size={14} style={{ color: C.ion }} />
+                : motionLevel === "subtle"
+                  ? <Activity size={14} style={{ color: C.plasma }} />
+                  : <ZapOff size={14} style={{ color: C.dim }} />}
+            </button>
+
             <button
               onClick={onSwapTheme}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl active:scale-90"

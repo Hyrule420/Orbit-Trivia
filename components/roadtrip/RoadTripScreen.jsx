@@ -3,7 +3,9 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { ArrowLeft, MapPin, Navigation, Trophy, Check, AlertTriangle, Play, Radio, RotateCcw, ChevronRight, Repeat, Map as MapIcon } from "lucide-react";
 import { useC } from "../../lib/theme";
+import { useMotion } from "../../lib/motion";
 import { TIER_META } from "../../lib/questions";
+import { heavyDay } from "../../lib/day";
 import { buzz } from "../../lib/util";
 import { CORRIDORS, CORRIDOR_BY_ID, DEFAULT_CORRIDOR_ID } from "../../lib/corridors";
 import { checkPack } from "../../lib/geo";
@@ -13,6 +15,8 @@ import { Btn, Panel, Kicker, formatDistance } from "./ui";
 import DevControls from "./DevControls";
 import MapPanel from "./MapPanel";
 import ArrivalPopup from "./ArrivalPopup";
+import PadLaunchFX from "./PadLaunchFX";
+import BoosterLandingFX from "./BoosterLandingFX";
 import GeoQuestionCard from "./GeoQuestionCard";
 import { QueueBar, QueueList, ArrivalToast } from "./QueueBar";
 
@@ -115,6 +119,7 @@ async function loadCorridorProgress(corridorId) {
 
 export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, geoBest = 0 }) {
   const C = useC();
+  const motion = useMotion();
 
   const [view, setView] = useState("picker");
   const [loaded, setLoaded] = useState(false);
@@ -139,6 +144,7 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
   const [arrival, setArrival] = useState(null);    // zone id showing the big pop-up
   const [toast, setToast] = useState(null);        // zone id showing the small toast
   const [playing, setPlaying] = useState(null);    // zone id being answered
+  const [padFx, setPadFx] = useState(null);        // zone id running a full-screen sequence
 
   const recentArrivalsRef = useRef([]);
   const saveTimerRef = useRef(null);
@@ -272,8 +278,12 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
      zones. Mirroring both into refs keeps the callback stable. */
   const queueLenRef = useRef(0);
   const arrivalRef = useRef(null);
+  /* Same reason: handleEnter must not be rebuilt when the motion
+     setting changes, or a preference tap mid-drive could re-fire a zone. */
+  const motionFullRef = useRef(motion.full);
   useEffect(() => { queueLenRef.current = queue.length; }, [queue]);
   useEffect(() => { arrivalRef.current = arrival; }, [arrival]);
+  useEffect(() => { motionFullRef.current = motion.full; }, [motion.full]);
 
   const handleEnter = useCallback((zone) => {
     /* Queue it first, always. Whatever the passenger does or doesn't
@@ -314,6 +324,12 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
     } else {
       arrivalRef.current = zone.id;
       setArrival(zone.id);
+      /* The full-screen launch and landing sequences ride on the pop-up,
+         never on the toast. An arrival that got downgraded is one we have
+         already decided not to make a fuss about — throwing a rocket
+         across the screen anyway would be exactly the nagging the burst
+         throttle exists to prevent. */
+      if (zone.fx && motionFullRef.current) setPadFx(zone.id);
     }
   }, []);
 
@@ -325,6 +341,7 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
   const playNow = useCallback((id) => {
     setArrival(null);
     setToast(null);
+    setPadFx(null);
     setPlaying(id);
     setView("card");
   }, []);
@@ -372,6 +389,7 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
   }, [api]);
 
   const endTrip = useCallback(() => {
+    setPadFx(null);
     api.stop();
     onTripEnd?.(points);
     setView("summary");
@@ -382,6 +400,7 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
     setAnswered({});
     setSkipped([]);
     setQueue([]);
+    setPadFx(null);
     setPoints(0);
     recentArrivalsRef.current = [];
     resetInside();
@@ -644,6 +663,8 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
   /* ---------- the live trip ---------- */
   const arrivalZone = arrival ? corridor.byId[arrival] : null;
   const toastZone = toast ? corridor.byId[toast] : null;
+  const fxZone = padFx ? corridor.byId[padFx] : null;
+  const fxTier = fxZone ? (TIER_META[fxZone.d] || TIER_META.Earthbound) : null;
   const simulating = source === "sim" || source === "manual";
   const offCorridor = nearest && nearest.distanceM > 80000;
 
@@ -753,18 +774,42 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
         </span>
       </div>
 
-      <MapPanel
-        route={corridor.route}
-        zones={corridor.zones}
-        pos={pos}
-        answeredIds={seen}
-        queuedIds={queue}
-        bounds={corridor.bounds}
-        mars={C.id === "mars"}
-        nearestId={nearest?.zone?.id}
-        height={300}
-        onTeleport={simulating ? api.teleport : undefined}
-      />
+      {/* The map gets its own copy of the ground shake.
+          It has to be its own wrapper rather than something higher up the
+          tree: a transform here would become the containing block for any
+          `position: fixed` descendant, and the arrival card, the toast and
+          the queue bar are all fixed. Shaking a shared ancestor would slide
+          all three around the screen. MapPanel has no fixed children, so
+          this is safe — and a CSS transform does not make Leaflet
+          re-measure, so nothing here may call invalidateSize(). */}
+      {/* Deliberately not keyed. Keying this to restart the shake would
+          give MapPanel a new element identity and tear the Leaflet map
+          down and rebuild it on every arrival — the exact remount the
+          comment in MapPanel.jsx exists to prevent. The animation
+          restarts on its own because the style goes away when padFx
+          clears; two pad sequences overlapping back to back is the one
+          case where the map doesn't re-shake, which is cosmetic. */}
+      <div
+        className={padFx ? "nc-anim" : undefined}
+        style={
+          padFx
+            ? { "--shake": 4, animation: "sc-groundshake 1.7s cubic-bezier(.2,.6,.4,1) .12s both" }
+            : undefined
+        }
+      >
+        <MapPanel
+          route={corridor.route}
+          zones={corridor.zones}
+          pos={pos}
+          answeredIds={seen}
+          queuedIds={queue}
+          bounds={corridor.bounds}
+          mars={C.id === "mars"}
+          nearestId={nearest?.zone?.id}
+          height={300}
+          onTeleport={simulating ? api.teleport : undefined}
+        />
+      </div>
 
       {gpsTrouble && (
         <Panel className="p-4 mt-3" style={{ borderColor: `${C.abort}55` }}>
@@ -843,12 +888,37 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
         <ArrivalToast zone={toastZone} onDone={() => setToast(null)} />
       )}
 
+      {/* The full-screen sequences go BEFORE the pop-up so they sit under
+          it in the stacking order as well as in the source. Both are
+          pointer-events: none at z-30, under the card's z-50, so every
+          button on the card stays live for the whole thing. Keyed on the
+          zone id: a fresh arrival is a fresh mount, which is what the
+          one-shot timeline in fxTimeline.js assumes. */}
+      {fxZone && fxZone.fx === "launch" && (
+        <PadLaunchFX
+          key={fxZone.id}
+          zone={fxZone}
+          tierColor={C[fxTier.key]}
+          onDone={() => setPadFx(null)}
+        />
+      )}
+
+      {fxZone && fxZone.fx === "landing" && (
+        <BoosterLandingFX
+          key={fxZone.id}
+          tierColor={C[fxTier.key]}
+          heavy={heavyDay()}
+          onDone={() => setPadFx(null)}
+        />
+      )}
+
       {arrivalZone && (
         <ArrivalPopup
           zone={arrivalZone}
           queueCount={Math.max(0, queue.length - 1)}
           onPlayNow={playNow}
           onSaveForLater={saveForLater}
+          bigFx={padFx === arrivalZone.id}
         />
       )}
     </div>

@@ -26,9 +26,12 @@ never appears, which is very hard to notice.
 - **`radiusM` between 1500 and 3000.** At 60 mph a 2500 m circle gives you about three
   minutes inside the zone. In town, where traffic runs at 45 mph and landmarks sit
   closer together, use 1500–2000.
-- **Zone circles must never overlap.** Two zones need to be further apart than the sum
-  of their radii, or a stretch of road has both live at once and fires two questions
-  back to back. On open highway that means roughly 4 km apart at 2500 m radii.
+- **Zones must not sit on the same spot** — closer than 600 m apart and it's almost
+  always the same landmark entered twice, or a copy-pasted coordinate somebody forgot
+  to edit. Overlapping *trigger circles* are fine and deliberately allowed: queueing
+  happens before anything is displayed, so driving into two at once queues both and
+  downgrades one to a toast. Requiring non-overlapping circles meant throwing away real
+  landmarks for being near each other, which around Kennedy is most of them.
 - **Pacing matters more than count.** Zones clustered in the towns with nothing between
   them is worse than fewer, evenly spread. When adding several at once, space them by
   distance along the route rather than by eye.
@@ -44,8 +47,28 @@ never appears, which is very hard to notice.
 
 Most of this is checked automatically. Run the app in development and watch the browser
 console — `checkPack` in `lib/geo.js` reports mistyped coordinates, zones that have
-drifted off the road, overlapping circles, duplicate ids and answers that aren't among
-their four options.
+drifted off the road, two zones on the same spot, duplicate ids and answers that aren't
+among their four options.
+
+## Optional flavour fields
+
+Three optional fields change how an arrival *feels*. Leave them off and the place gets
+the plain treatment, which is the right default for most entries.
+
+- **`kind`** — what sort of place this is: `"pad"`, `"water"` or `"wildlife"`. Drives the
+  arrival card's entrance animation and its overlays (`components/roadtrip/ArrivalPopup.jsx`).
+  `"pad"` additionally lets the arrival skip the burst throttle, so a cluster of launch
+  complexes doesn't mute the arrivals people came for.
+- **`fx`** — opts the zone into a full-screen sequence on arrival: `"launch"` for an
+  ignition and climb-out, `"landing"` for a booster coming home. Use it only where that
+  literally happens. The Vehicle Assembly Building and the Crawlerway are both
+  `kind: "pad"` and deliberately have **no** `fx` — nothing lifts off from either, so a
+  rocket climbing out of them would read as a bug.
+- **`vehicle`** — which silhouette the sequence flies: `"starship"` or `"falcon"`.
+  Defaults to `"falcon"`.
+
+The sequence is skipped entirely when the player's motion setting is Off or their device
+asks for reduced motion, so nothing here may be load-bearing for the question itself.
 
 ## The shape of a corridor
 
@@ -58,6 +81,7 @@ export const someCorridor = {
   bounds: [[southLat, westLng], [northLat, eastLng]],
   route: [ [lat, lng], ... ],   // the road, as a polyline
   zones: [ { id, place, lat, lng, radiusM, blurb, q, o, a, d, c }, ... ],
+                                // plus the optional kind / fx / vehicle above
 };
 ```
 

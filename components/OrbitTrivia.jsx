@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import GlobalStyles from "@/components/GlobalStyles";
 import { THEMES, ThemeCtx } from "@/lib/theme";
+import { MotionCtx, useMotionValue, nextMotionLevel, MOTION_KEY, MOTION_LEVELS } from "@/lib/motion";
 import { QUESTIONS } from "@/lib/questions";
 import { SFX } from "@/lib/sfx";
 import { storage } from "@/lib/storage";
@@ -43,6 +44,10 @@ export default function OrbitTrivia() {
   const [dayStreakData, setDayStreakData] = useState({ lastDate: null, current: 0, best: 0 });
   const [streakMilestone, setStreakMilestone] = useState(null);
   const [soundOn, setSoundOn] = useState(true);
+  /* How much spectacle the player wants. The device's own reduced-motion
+     setting overrides this and is watched live — see lib/motion.js. */
+  const [motionLevel, setMotionLevel] = useState("full");
+  const motion = useMotionValue(motionLevel);
   const [escapeBest, setEscapeBest] = useState(0);
   /* The road trip keeps its own best score and its own "yes to location"
      flag. Deliberately separate from `stats` — an untimed, open-ended mode
@@ -119,6 +124,10 @@ export default function OrbitTrivia() {
         const s = await storage.get("orbit:sound");
         if (s?.value === "off") setSoundOn(false);
       } catch (e) { /* default is on */ }
+      try {
+        const m = await storage.get(MOTION_KEY);
+        if (MOTION_LEVELS.includes(m?.value)) setMotionLevel(m.value);
+      } catch (e) { /* default is full */ }
       /* The saved theme is deliberately NOT restored here. Every fresh
          launch starts on the Moon/Mars picker, even for returning players. */
       try {
@@ -173,6 +182,17 @@ export default function OrbitTrivia() {
     SFX.setEnabled(next);
     if (next) SFX.ui();  // confirm it came back on
     try { await storage.set("orbit:sound", next ? "on" : "off"); } catch (e) { /* session only */ }
+  };
+
+  /* Cycles full -> subtle -> off. Does nothing while the device is
+     asking for reduced motion: the level is already forced to off, so
+     letting the button appear to change it would just be a lie. */
+  const cycleMotion = async () => {
+    if (motion.systemReduced) return;
+    const next = nextMotionLevel(motionLevel);
+    setMotionLevel(next);
+    SFX.ui();
+    try { await storage.set(MOTION_KEY, next); } catch (e) { /* session only */ }
   };
 
   const dismissMilestone = async () => {
@@ -292,6 +312,7 @@ export default function OrbitTrivia() {
 
   return (
     <ThemeCtx.Provider value={theme}>
+      <MotionCtx.Provider value={motion}>
       <GlobalStyles />
       <div style={{ background: theme.void, minHeight: "100vh", transition: "background .4s ease" }}>
         {screen === "home" && (
@@ -313,6 +334,9 @@ export default function OrbitTrivia() {
             onDismissMilestone={dismissMilestone}
             soundOn={soundOn}
             onToggleSound={toggleSound}
+            motionLevel={motion.level}
+            motionLocked={motion.systemReduced}
+            onCycleMotion={cycleMotion}
             showInstall={showInstall}
             onDismissInstall={dismissInstall}
             androidPrompt={runAndroidInstall}
@@ -343,6 +367,9 @@ export default function OrbitTrivia() {
               onDismissMilestone={() => {}}
               soundOn={soundOn}
               onToggleSound={() => {}}
+              motionLevel={motion.level}
+              motionLocked={motion.systemReduced}
+              onCycleMotion={() => {}}
               showInstall={false}
               onDismissInstall={() => {}}
               androidPrompt={null}
@@ -391,6 +418,7 @@ export default function OrbitTrivia() {
           )
         )}
       </div>
+      </MotionCtx.Provider>
     </ThemeCtx.Provider>
   );
 }

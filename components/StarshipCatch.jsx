@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useSystemReducedMotion } from "../lib/motion";
 
 /* ============================================================
    STARSHIP + MECHAZILLA — the Home screen hero.
@@ -25,9 +26,13 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
    so useC() would work here — the prop simply hasn't been changed.
    ============================================================ */
 
-/* ---------- colour helpers ---------- */
-const clamp01 = (v) => Math.min(1, Math.max(0, v));
-const smooth = (v) => {
+/* ---------- colour helpers ----------
+   Exported because the Road Trip launch and landing sequences
+   (components/roadtrip/PadLaunchFX.jsx, BoosterLandingFX.jsx) draw the
+   same vehicles with the same plume and need the same maths. They are
+   the artwork's vocabulary, not private detail. */
+export const clamp01 = (v) => Math.min(1, Math.max(0, v));
+export const smooth = (v) => {
   const x = clamp01(v);
   return x * x * (3 - 2 * x);
 };
@@ -36,7 +41,7 @@ const hex2rgb = (h) => [
   parseInt(h.slice(3, 5), 16),
   parseInt(h.slice(5, 7), 16),
 ];
-const mixHex = (a, b, t) => {
+export const mixHex = (a, b, t) => {
   const A = hex2rgb(a);
   const B = hex2rgb(b);
   const k = clamp01(t);
@@ -45,7 +50,7 @@ const mixHex = (a, b, t) => {
 /* mixHex returns rgb(), which can't take the `${colour}44` alpha suffix the
    rest of the app uses, so anything built here gets its alpha from an
    explicit opacity attribute instead. */
-const rgba = (hex, a) => {
+export const rgba = (hex, a) => {
   const [r, g, b] = hex2rgb(hex);
   return `rgba(${r},${g},${b},${a})`;
 };
@@ -63,7 +68,7 @@ const FLAME = {
   coolCore: "#F4FBFF",
 };
 
-function shipPalette(C) {
+export function shipPalette(C) {
   return {
     steel: mixHex("#C9D2DC", C.star, 0.3),
     steelDark: mixHex("#8A97A6", C.dim, 0.4),
@@ -168,12 +173,129 @@ export function StarshipBody({ P, reentry = 0 }) {
 }
 
 /* ============================================================
+   FALCON 9 — same native 60 x 210 viewBox as the Starship above, so
+   the two are interchangeable anywhere a vehicle is drawn.
+
+   Deliberately much narrower than the Starship: the real thing is 3.7 m
+   across and 70 m tall, and that slenderness is most of what makes it
+   recognisable at a glance. Full stack for a launch — fairing, second
+   stage, interstage, first stage — because that is what leaves SLC-40.
+
+   Two props drive the landing:
+     fins  0 stowed flat  ->  1 grid fins out and biting
+     legs  0 tucked       ->  1 the four legs deployed for touchdown
+   Both stay at 0 for a launch, which is also the correct configuration
+   for the way up.
+   ============================================================ */
+export function Falcon9Body({ P, fins = 0, legs = 0, reentry = 0 }) {
+  const finTilt = 22 * fins;
+
+  return (
+    <g>
+      {/* fairing — wider than the body, which is the giveaway silhouette */}
+      <path
+        d="M30 2 C34 2 37 9 38.5 19 C39.6 27 40 33 40 38 L20 38
+           C20 33 20.4 27 21.5 19 C23 9 26 2 30 2 Z"
+        fill={P.steel}
+      />
+      {/* the fairing split line */}
+      <line x1="30" y1="3" x2="30" y2="38" stroke={P.void} strokeWidth="0.7" opacity="0.35" />
+
+      {/* second stage */}
+      <rect x="23" y="38" width="14" height="80" fill={P.steel} />
+
+      {/* interstage — the black band, the other half of the silhouette */}
+      <rect x="22.5" y="118" width="15" height="16" fill={P.tile} />
+
+      {/* first stage */}
+      <rect x="23" y="134" width="14" height="52" fill={P.steel} />
+
+      {/* specular highlight down one side — stainless and aluminium, not paint */}
+      <rect x="33" y="38" width="3" height="148" fill="#FFFFFF" opacity="0.10" />
+
+      {/* soot. A flown booster comes back grubby from the engine end up,
+          and that stain is most of what says "this one has been here
+          before" — which is the entire point of the landing zones. */}
+      <rect x="23" y="150" width="14" height="36" fill={P.void} opacity="0.3" />
+
+      {/* grid fins, at the top of the first stage just under the
+          interstage, hinged so they read as folding rather than sliding */}
+      <g>
+        <rect
+          x="17" y="134" width="6" height="11" rx="1" fill={P.towerDark}
+          style={{
+            transform: `rotate(${-finTilt}deg)`, transformBox: "fill-box", transformOrigin: "100% 0%",
+            transition: "transform .5s ease",
+          }}
+        />
+        <rect
+          x="37" y="134" width="6" height="11" rx="1" fill={P.towerDark}
+          style={{
+            transform: `rotate(${finTilt}deg)`, transformBox: "fill-box", transformOrigin: "0% 0%",
+            transition: "transform .5s ease",
+          }}
+        />
+      </g>
+
+      {/* entry burn: the engine end takes the heating on the way down,
+          so the glow builds from the bottom rather than down one side
+          the way the Starship's windward tiles do */}
+      {reentry > 0.01 && (
+        <g opacity={reentry}>
+          <ellipse cx="30" cy="190" rx="19" ry="15" fill={FLAME.hot} opacity="0.45"
+                   style={{ filter: "blur(6px)" }} />
+          <ellipse cx="30" cy="192" rx="10" ry="8" fill={FLAME.hotCore} opacity="0.7"
+                   style={{ filter: "blur(3px)" }} />
+        </g>
+      )}
+
+      {/* Landing legs.
+          Drawn once at full deployment and scaled out from the hinge
+          line rather than having their endpoints recomputed, because SVG
+          line endpoints are attributes and do not reliably transition —
+          a leg would snap open in one frame. Scaling a group transitions
+          on the compositor and reads as the legs swinging down, which is
+          what they actually do. */}
+      <g
+        style={{
+          transform: `scaleY(${0.06 + 0.94 * legs}) scaleX(${0.28 + 0.72 * legs})`,
+          transformBox: "fill-box",
+          transformOrigin: "50% 0%",
+          transition: "transform .55s cubic-bezier(.2,.9,.3,1)",
+          opacity: 0.35 + 0.65 * legs,
+        }}
+      >
+        <g stroke={P.steelDark} strokeWidth="2.6" strokeLinecap="round">
+          <line x1="25" y1="176" x2="12" y2="202" />
+          <line x1="35" y1="176" x2="48" y2="202" />
+          {/* the inner struts that actually take the landing load */}
+          <g strokeWidth="1.4" opacity="0.8">
+            <line x1="26" y1="167" x2="14" y2="199" />
+            <line x1="34" y1="167" x2="46" y2="199" />
+          </g>
+        </g>
+      </g>
+
+      {/* octaweb and the nine engines: eight on the ring, one in the middle */}
+      <rect x="21" y="186" width="18" height="8" rx="1" fill={P.steelDark} />
+      <rect x="21" y="186" width="18" height="2" fill={P.void} opacity="0.35" />
+      <g fill={P.towerDark}>
+        {[-7, -3.5, 0, 3.5, 7].map((dx) => (
+          <ellipse key={dx} cx={30 + dx} cy="197" rx="2.1" ry="3.1" />
+        ))}
+        <ellipse cx="30" cy="194" rx="2.3" ry="3.2" fill={P.tower} />
+      </g>
+    </g>
+  );
+}
+
+/* ============================================================
    PLUME
    mix  0 fuel-rich sooty orange startup  ->  1 clean methalox blue-white
    alt  0 sea level, tight plume and hard shock diamonds
         1 vacuum, the plume balloons and the diamonds wash out
    ============================================================ */
-function Plume({ power, flicker, mix, alt }) {
+export function Plume({ power, flicker, mix, alt }) {
   if (power <= 0.01) return null;
 
   const j = flicker;
@@ -521,11 +643,10 @@ export default function StarshipHero({
     return () => ro.disconnect();
   }, [height]);
 
-  const [reduced] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
-  );
+  /* Watched rather than sampled once at mount: this hero is on screen
+     for as long as someone sits on the home page, so a reduced-motion
+     switch flipped mid-session has to take effect without a reload. */
+  const reduced = useSystemReducedMotion();
 
   /* Live artwork state. Only ticks while something is burning, and only
      re-renders this subtree — Home's mode cards are untouched. */

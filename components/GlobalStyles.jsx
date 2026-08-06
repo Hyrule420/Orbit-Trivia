@@ -197,6 +197,83 @@ export default function GlobalStyles() {
         80%  { transform: translate(0, 0) rotate(0deg) scale(1.02); opacity: 1; filter: brightness(1.5); }
         100% { transform: translate(0, 0) rotate(0deg) scale(1);    opacity: 1; filter: none; }
       }
+      /* ---- road trip: launch pads and landing zones ----
+         Used by components/roadtrip/PadLaunchFX.jsx and
+         BoosterLandingFX.jsx. Everything here animates transform and
+         opacity only: these run full-screen on a phone that is also
+         holding a GPS fix, a wake lock and a map full of tiles, and
+         anything that makes the browser re-paint rather than re-composite
+         shows up immediately as dropped frames. Blur is set once and
+         never animated, for the same reason. */
+
+      /* the pressure wave going out — fast, then it runs out of energy */
+      @keyframes sc-shock {
+        0%   { transform: scale(.06); opacity: 0; }
+        8%   { opacity: .85; }
+        60%  { opacity: .35; }
+        100% { transform: scale(1);   opacity: 0; }
+      }
+      /* Ground shake. Longer and messier than screenshake above, which is a
+         quick UI knock — this one has to read as the pad letting go, so
+         it moves on both axes and decays instead of stopping dead.
+         --shake scales the whole thing so one keyframe covers the heavy
+         first second and the aftershock. */
+      @keyframes sc-groundshake {
+        0%   { transform: translate(0, 0); }
+        8%   { transform: translate(calc(var(--shake) * -1px), calc(var(--shake) * .6px)); }
+        17%  { transform: translate(calc(var(--shake) * .9px),  calc(var(--shake) * -.5px)); }
+        26%  { transform: translate(calc(var(--shake) * -.75px), calc(var(--shake) * -.7px)); }
+        38%  { transform: translate(calc(var(--shake) * .6px),  calc(var(--shake) * .55px)); }
+        52%  { transform: translate(calc(var(--shake) * -.45px), calc(var(--shake) * .35px)); }
+        68%  { transform: translate(calc(var(--shake) * .3px),  calc(var(--shake) * -.25px)); }
+        84%  { transform: translate(calc(var(--shake) * -.15px), calc(var(--shake) * .12px)); }
+        100% { transform: translate(0, 0); }
+      }
+      /* A booster falls engines-last and canted, then pitches upright for
+         the burn. The overshoot at 78% is the flip going slightly past
+         vertical and settling back, which is what it actually looks like. */
+      @keyframes sc-flip {
+        0%   { transform: rotate(var(--cant)); }
+        55%  { transform: rotate(calc(var(--cant) * .45)); }
+        78%  { transform: rotate(-4deg); }
+        100% { transform: rotate(0deg); }
+      }
+      /* Touchdown dust: thrown outward and low, then it hangs and thins.
+         Distinct from smokeout above, which drifts upward — dust off a
+         landing pad goes sideways first because that is where the
+         exhaust sends it. */
+      @keyframes sc-dust {
+        0%   { transform: translateX(0) scaleX(.2) scaleY(.5); opacity: 0; }
+        14%  { opacity: .8; }
+        100% { transform: translateX(var(--dx)) scaleX(2.6) scaleY(1.5); opacity: 0; }
+      }
+      /* A booster coming home. Falls fast, then the burn takes almost all
+         of it out in the last stretch — the stops are bunched at the end
+         because a suicide burn arrives at zero velocity and zero altitude
+         at the same moment, rather than slowing gently the whole way. */
+      @keyframes sc-descend {
+        0%   { transform: translateY(-108vh); opacity: 0; }
+        7%   { opacity: 1; }
+        58%  { transform: translateY(-30vh); }
+        80%  { transform: translateY(-9vh); }
+        93%  { transform: translateY(-1.2vh); }
+        100% { transform: translateY(0); }
+      }
+      /* The landing burn: lights, holds while it kills the velocity,
+         and cuts the instant the legs are down. */
+      @keyframes sc-burn {
+        0%   { opacity: 0; transform: scaleY(.15); }
+        14%  { opacity: 1; transform: scaleY(1); }
+        76%  { opacity: 1; transform: scaleY(.85); }
+        100% { opacity: 0; transform: scaleY(.1); }
+      }
+      /* The flash the shock front puts across everything for a frame or two. */
+      @keyframes sc-flash {
+        0%   { opacity: 0; }
+        6%   { opacity: .5; }
+        100% { opacity: 0; }
+      }
+
       @media (prefers-reduced-motion: reduce) {
         * { transition-duration: .01ms !important; animation-duration: .01ms !important; }
       }
