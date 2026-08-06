@@ -68,6 +68,27 @@ function SizeFixer() {
   return null;
 }
 
+/* The bubble at the far end of a leader line — built the same way as
+   the car icon below (inline SVG through a divIcon; see the file header
+   for why default Leaflet markers are avoided). A filled teardrop with
+   a dark centre dot, so it reads as "the exact spot" rather than a
+   second copy of the open trigger dot back on the road. Colour is the
+   only thing that changes, so this stays a plain function rather than
+   a hook — no state to memoize against. */
+function realPinIcon(color) {
+  return L.divIcon({
+    className: "",
+    iconSize: [18, 23],
+    iconAnchor: [9, 21],
+    html: `
+      <svg width="18" height="23" viewBox="0 0 18 23" style="filter: drop-shadow(0 0 5px ${color}AA);">
+        <path d="M9 1C4.58 1 1 4.53 1 8.86 1 14.6 9 22 9 22S17 14.6 17 8.86C17 4.53 13.42 1 9 1Z"
+              fill="${color}" stroke="#03040A" stroke-width="1.3"/>
+        <circle cx="9" cy="8.86" r="3" fill="#03040A" opacity="0.88"/>
+      </svg>`,
+  });
+}
+
 export default function GeoMap({
   route, zones, pos, answeredIds, queuedIds, bounds, follow = true, onTeleport, mars, height = 300,
   nearestId,
@@ -159,7 +180,18 @@ export default function GeoMap({
 
           {/* Every zone: a faint circle for the trigger area, a solid dot
               for the centre. Green once you've answered it, and the one
-              you're heading for pulses. */}
+              you're heading for pulses.
+
+              Most of these pins sit on the public road rather than on the
+              thing they represent — you cannot drive to Launch Complex
+              39A, so its circle is on SR-3 while the pad itself is miles
+              north behind a fence (see the corridor file's header). A
+              zone carrying `real` gets a leader line out to where the
+              landmark actually is, so the circle on the road reads as
+              "your GPS check happens here" rather than "the launch pad is
+              here." Zones without one either sit at the real place
+              already — a bridge, a pier, a town — or don't have a single
+              point worth pointing at, like a 20-mile stretch of refuge. */}
           {zones.map((z) => {
             const done = answeredIds.includes(z.id);
             const queued = queuedIds.includes(z.id);
@@ -176,6 +208,13 @@ export default function GeoMap({
                     className: isNext ? "nc-next" : undefined,
                   }}
                 />
+                {z.real && (
+                  <Polyline
+                    positions={[[z.lat, z.lng], z.real]}
+                    pathOptions={{ color, weight: 1.5, opacity: 0.5, dashArray: "1 7", lineCap: "round" }}
+                    className={isNext ? "nc-next" : undefined}
+                  />
+                )}
                 <CircleMarker
                   center={[z.lat, z.lng]}
                   radius={done ? 6 : 5}
@@ -184,6 +223,7 @@ export default function GeoMap({
                     fillColor: color, fillOpacity: done ? 1 : 0.5,
                   }}
                 />
+                {z.real && <Marker position={z.real} icon={realPinIcon(color)} />}
               </React.Fragment>
             );
           })}

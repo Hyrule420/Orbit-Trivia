@@ -70,6 +70,31 @@ the plain treatment, which is the right default for most entries.
 The sequence is skipped entirely when the player's motion setting is Off or their device
 asks for reduced motion, so nothing here may be load-bearing for the question itself.
 
+## Pointing at the real place: `real`
+
+`lat`/`lng` is where the trigger circle sits on the road — the rule at the top of this
+file is that it goes **on the road**, not on the landmark, because most of what's worth
+asking about here is behind a fence, across water, or otherwise somewhere you can't
+drive. Left alone, that makes every zone look like the thing it represents is sitting
+right there on the highway.
+
+`real: [lat, lng]` fixes that for a specific zone: the map draws a dashed line from the
+road pin out to this coordinate, with a small pin marking the actual spot
+(`components/roadtrip/GeoMap.jsx`). Add it when the blurb is already saying "north of
+you" or "off to your west" — the line is just drawing what the words already claim.
+
+Two rules, both enforced by `checkPack`:
+
+- **Only add it when you actually know the coordinate.** A wrong `lat`/`lng` fails
+  silently — the zone just never fires. A wrong `real` fails loudly, in public, on a map:
+  it tells someone exactly where a place is and gets it wrong. If you can't find a real
+  source for the landmark's coordinates, leave `real` off rather than eyeball it.
+- **Skip it where the pin already is the place** — a bridge you're driving over, a pier,
+  a town centre — or where there's no single point to aim at, like a wildlife refuge that
+  runs for twenty miles. Neither of those is being misrepresented, so there's nothing to
+  fix. `checkPack` will complain if `real` ends up within 150 m of the pin, which usually
+  means it wasn't worth adding.
+
 ## The shape of a corridor
 
 ```js
