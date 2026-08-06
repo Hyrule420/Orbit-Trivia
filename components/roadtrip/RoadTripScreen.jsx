@@ -19,6 +19,7 @@ import ArrivalPopup from "./ArrivalPopup";
 import PadLaunchFX from "./PadLaunchFX";
 import BoosterLandingFX from "./BoosterLandingFX";
 import CrawlerRolloutFX from "./CrawlerRolloutFX";
+import SurfFX from "./SurfFX";
 import GeoQuestionCard from "./GeoQuestionCard";
 import QuestionCarousel from "./QuestionCarousel";
 import { QueueBar, QueueList, ArrivalToast } from "./QueueBar";
@@ -319,7 +320,13 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
        the arrivals people came for, turning Launch Complex 39A into a
        one-line toast. A pad ignores the burst count and the backlog,
        but still waits its turn if a pop-up is already up. */
-    const headline = zone.kind === "pad";
+    /* A zone that has a full-screen sequence waiting is one we have
+       already decided is worth making a fuss about, so it gets the same
+       exemption the launch pads do. Without this, Sebastian Inlet — the
+       last stop on the road, by which point the queue is always deep —
+       would downgrade to a toast every single time and its wave would
+       never once play. */
+    const headline = zone.kind === "pad" || !!zone.fx;
     const busy = headline
       ? arrivalRef.current !== null
       : recent.length > BURST_LIMIT ||
@@ -1004,6 +1011,10 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
           tierColor={C[fxTier.key]}
           onDone={() => setPadFx(null)}
         />
+      )}
+
+      {fxZone && fxZone.fx === "surf" && (
+        <SurfFX key={fxZone.id} onDone={() => setPadFx(null)} />
       )}
 
       {arrivalZone && (

@@ -61,11 +61,17 @@ the plain treatment, which is the right default for most entries.
   complexes doesn't mute the arrivals people came for.
 - **`fx`** — opts the zone into a full-screen sequence on arrival: `"launch"` for an
   ignition and climb-out, `"landing"` for a booster coming home, `"rollout"` for the
-  crawler-transporter creeping a stack across the screen. Use whichever one actually
-  happens at that zone — the Vehicle Assembly Building and the Crawlerway are both
-  `kind: "pad"` but get `"rollout"`, not `"launch"`: nothing lifts off from either of
-  them, but a rollout is *specifically* what a crawlerway is for. A zone where none of
-  the three applies just gets no `fx` at all.
+  crawler-transporter creeping a stack across the screen, `"surf"` for a set rolling
+  through. Use whichever one actually happens at that zone — the Vehicle Assembly
+  Building and the Crawlerway are both `kind: "pad"` but get `"rollout"`, not
+  `"launch"`: nothing lifts off from either of them, but a rollout is *specifically*
+  what a crawlerway is for. A zone where none of them applies just gets no `fx` at all.
+  Setting `fx` also exempts the zone from the burst throttle, so a place carrying a
+  sequence always gets the full arrival card rather than being downgraded to a toast.
+- **`questions`** — an array of `{ q, o, a }` instead of a single inline `q`/`o`/`a`,
+  for landmarks worth stopping at more than once. The arrival opens a reel to pick
+  from; answering any one of them clears the zone. Most places should stay on the
+  single inline question — five questions about a fishing village is padding.
 - **`vehicle`** — which silhouette the sequence flies: `"starship"` or `"falcon"`.
   Defaults to `"falcon"`.
 

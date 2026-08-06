@@ -295,6 +295,31 @@ export default function GlobalStyles() {
         0%   { transform: translateX(0); }
         100% { transform: translateX(calc(100vw + 420px)); }
       }
+      /* ---- Sebastian Inlet ----
+         A swell rolling in, standing up, and breaking. The horizontal
+         travel and the rise are one motion because that is how a wave
+         works: it does not move and then peak, it peaks because it is
+         moving into shallow water. */
+      @keyframes sc-swell {
+        0%   { transform: translateX(0) translateY(26px) scaleY(.5); opacity: 0; }
+        14%  { opacity: 1; }
+        55%  { transform: translateX(-46vw) translateY(0) scaleY(1.15); }
+        100% { transform: translateX(-108vw) translateY(16px) scaleY(.7); opacity: 0; }
+      }
+      /* Foam thrown off the lip, blown back over the top of the wave. */
+      @keyframes sc-spray {
+        0%   { transform: translate(0, 0) scale(.4); opacity: 0; }
+        18%  { opacity: .9; }
+        100% { transform: translate(var(--sx), var(--sy)) scale(1.5); opacity: 0; }
+      }
+      /* The board dropping in, riding across, and kicking out. */
+      @keyframes sc-ride {
+        0%   { transform: translate(0, -30px) rotate(-16deg); opacity: 0; }
+        12%  { opacity: 1; }
+        30%  { transform: translate(-22vw, 6px) rotate(6deg); }
+        62%  { transform: translate(-56vw, -4px) rotate(-4deg); }
+        100% { transform: translate(-104vw, -24px) rotate(-20deg); opacity: 0; }
+      }
       /* The flash the shock front puts across everything for a frame or two. */
       @keyframes sc-flash {
         0%   { opacity: 0; }
