@@ -16,7 +16,7 @@ import InstallHint from "../ui/InstallHint";
 import CardCracks from "./CardCracks";
 import { CARD_SHARDS, LAUNCH } from "./launch";
 
-export default function Home({ onDaily, onCustom, onEscape, onGeoTrip, geoBest = 0, escapeBest = 0, stats, dailyDone, onSwapTheme, themeName, profile, dayStreak, onOpenProfile, streakMilestone, onDismissMilestone, soundOn, onToggleSound, motionLevel = "full", motionLocked = false, onCycleMotion, showInstall, onDismissInstall, androidPrompt }) {
+export default function Home({ onDaily, onCustom, onEscape, onGeoTrip, geoBest = 0, escapeBest = 0, stats, dailyDone, onSwapTheme, themeName, profile, dayStreak, onOpenProfile, streakMilestone, onDismissMilestone, soundOn, onToggleSound, motionLevel = "full", deviceAsksReduced = false, onCycleMotion, showInstall, onDismissInstall, androidPrompt }) {
   const C = useC();
   const motion = useMotion();
   const named = (profile.name || "").trim();
@@ -191,16 +191,16 @@ export default function Home({ onDaily, onCustom, onEscape, onGeoTrip, geoBest =
             </button>
 
             {/* How much spectacle the launch pads are allowed to throw at
-                you. Locked to Off — and not tappable — while the device
-                itself is asking for reduced motion, because pretending the
-                button still changes anything would be a lie. */}
+                you. Always tappable, including when the device has asked
+                for reduced motion — that preference chooses where this
+                starts, not where it has to stay. Locking it was a bug:
+                every animation went dead and the only way to bring them
+                back was greyed out. */}
             <button
               onClick={onCycleMotion}
-              disabled={motionLocked}
               aria-label={
-                motionLocked
-                  ? "Motion off — your device is set to reduce motion"
-                  : `Motion: ${motionLabel(motionLevel)}. Switch to ${motionLabel(nextMotionLevel(motionLevel))}`
+                `Motion: ${motionLabel(motionLevel)}${deviceAsksReduced ? " (your device asks for reduced motion)" : ""}.`
+                + ` Switch to ${motionLabel(nextMotionLevel(motionLevel))}`
               }
               className="flex items-center justify-center rounded-xl active:scale-90"
               style={{
@@ -208,8 +208,7 @@ export default function Home({ onDaily, onCustom, onEscape, onGeoTrip, geoBest =
                 height: 34,
                 background: C.hullLight,
                 border: `1px solid ${motionLevel === "full" ? `${C.ion}55` : motionLevel === "subtle" ? `${C.plasma}55` : C.edge}`,
-                opacity: motionLocked ? 0.5 : 1,
-                transition: "transform .12s, border-color .2s, opacity .2s",
+                transition: "transform .12s, border-color .2s",
               }}
             >
               {motionLevel === "full"

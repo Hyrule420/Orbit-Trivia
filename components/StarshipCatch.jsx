@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useSystemReducedMotion } from "../lib/motion";
+import { useMotion } from "../lib/motion";
 
 /* ============================================================
    STARSHIP + MECHAZILLA — the Home screen hero.
@@ -643,10 +643,12 @@ export default function StarshipHero({
     return () => ro.disconnect();
   }, [height]);
 
-  /* Watched rather than sampled once at mount: this hero is on screen
-     for as long as someone sits on the home page, so a reduced-motion
-     switch flipped mid-session has to take effect without a reload. */
-  const reduced = useSystemReducedMotion();
+  /* The resolved setting, not the raw device preference: someone who has
+     explicitly asked for motion back should get the hero animating even
+     though their phone asks for less. Watched rather than sampled once
+     at mount, because this is on screen for as long as they sit on the
+     home page. */
+  const reduced = useMotion().off;
 
   /* Live artwork state. Only ticks while something is burning, and only
      re-renders this subtree — Home's mode cards are untouched. */
@@ -735,9 +737,14 @@ export default function StarshipHero({
         .sc-holddown { animation: sc-holddown .09s linear infinite; }
         @keyframes sc-beacon { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
         .sc-beacon { animation: sc-beacon 1.7s ease-in-out infinite; }
+        /* Grouped with :is() so the ancestor guard applies to every class
+           — a bare comma list would scope only the first one. */
         @media (prefers-reduced-motion: reduce) {
-          .sc-deluge, .sc-spark, .sc-drift, .sc-holddown, .sc-beacon { animation: none !important; }
+          html:not([data-motion=full]):not([data-motion=subtle])
+            :is(.sc-deluge, .sc-spark, .sc-drift, .sc-holddown, .sc-beacon) { animation: none !important; }
         }
+        html[data-motion=off]
+          :is(.sc-deluge, .sc-spark, .sc-drift, .sc-holddown, .sc-beacon) { animation: none !important; }
       `}</style>
 
       {/* ---------- BACK: tower, mount, pad fire ---------- */}

@@ -92,7 +92,7 @@ export default function ArrivalPopup({ zone, queueCount, onPlayNow, onSaveForLat
           20%  { transform: scaleY(1) translateY(0); opacity: .85; }
           100% { transform: scaleY(2.6) translateY(-120px); opacity: 0; }
         }
-        /* The card's glow ramping up on ignition, then settling. */
+        /* The glow on the card ramping up on ignition, then settling. */
         @keyframes nc-glow {
           0%   { box-shadow: 0 0 0 rgba(0,0,0,0); }
           25%  { box-shadow: var(--nc-glow-peak); }
@@ -112,8 +112,9 @@ export default function ArrivalPopup({ zone, queueCount, onPlayNow, onSaveForLat
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .nc-anim { animation: none !important; }
+          html:not([data-motion=full]):not([data-motion=subtle]) .nc-anim { animation: none !important; }
         }
+        html[data-motion=off] .nc-anim { animation: none !important; }
       `}</style>
 
       {/* A gradient rather than a black sheet: the map stays readable

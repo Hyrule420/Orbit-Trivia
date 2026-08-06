@@ -16,6 +16,25 @@ import React from "react";
 
    Fonts are loaded as real <link> tags in app/layout.jsx, not via
    @import in this <style> block — see the comment there for why.
+
+   ------------------------------------------------------------
+   NOTHING inside the template literal below may contain any of
+
+       "     '     <     >
+
+   not even in a comment. React escapes all four when it serialises
+   text, and <style> is a raw-text element, so the browser never
+   decodes them back. The CSS arrives corrupted AND the server and
+   client markup disagree, which fails hydration on every load — the
+   whole tree gets thrown away and re-rendered on the client.
+
+   This file has now cost that bug three times: an apostrophe in prose,
+   quoted attribute selectors, and the characters <html> written in a
+   comment. Say "the root element" instead, and leave attribute values
+   unquoted — [data-motion=off] is valid CSS and needs no quotes.
+
+   There is a guard for this: `npm run check:styles`, which also runs
+   as part of `npm run build`.
    ============================================================ */
 export default function GlobalStyles() {
   return (
@@ -283,8 +302,26 @@ export default function GlobalStyles() {
         100% { opacity: 0; }
       }
 
+      /* ---- honouring reduce-motion, without trapping anyone ----
+         Two rules doing one job.
+
+         The media query is the default and covers the first paint,
+         before any JavaScript has run. It deliberately stops applying
+         once the player has explicitly asked for Full or Subtle — that
+         choice is theirs to make, and this rule used to override it,
+         which left the animations dead with no way to bring them back.
+
+         The attribute rule covers the resolved setting once the app is
+         running: data-motion is written onto the root element by
+         OrbitTrivia.jsx and lands on off both when the player chose Off
+         and when the device asked and they never overrode it. */
       @media (prefers-reduced-motion: reduce) {
-        * { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+        html:not([data-motion=full]):not([data-motion=subtle]) * {
+          transition-duration: .01ms !important; animation-duration: .01ms !important;
+        }
+      }
+      html[data-motion=off] * {
+        transition-duration: .01ms !important; animation-duration: .01ms !important;
       }
     `}</style>
   );

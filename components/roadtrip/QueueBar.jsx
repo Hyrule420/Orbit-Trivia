@@ -106,7 +106,10 @@ export function ArrivalToast({ zone, onDone }) {
           from { transform: translateY(20px); opacity: 0; }
           to   { transform: translateY(0);    opacity: 1; }
         }
-        @media (prefers-reduced-motion: reduce) { .nc-toast { animation: none !important; } }
+        @media (prefers-reduced-motion: reduce) {
+          html:not([data-motion=full]):not([data-motion=subtle]) .nc-toast { animation: none !important; }
+        }
+        html[data-motion=off] .nc-toast { animation: none !important; }
       `}</style>
       <div className="fixed inset-x-0 z-40 flex justify-center px-4" style={{ bottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}>
         <div

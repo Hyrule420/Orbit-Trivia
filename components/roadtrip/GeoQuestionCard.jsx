@@ -94,8 +94,9 @@ export default function GeoQuestionCard({ zone, queueRemaining, onAnswered, onNe
           to   { transform: translateY(0);    opacity: 1; }
         }
         @media (prefers-reduced-motion: reduce) {
-          .gq-anim { animation: none !important; }
+          html:not([data-motion=full]):not([data-motion=subtle]) .gq-anim { animation: none !important; }
         }
+        html[data-motion=off] .gq-anim { animation: none !important; }
       `}</style>
       {/* Where you are */}
       <div className="flex items-center gap-2 mb-1">

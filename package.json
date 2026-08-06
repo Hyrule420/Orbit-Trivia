@@ -5,9 +5,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/check-styles.mjs && next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "check:styles": "node scripts/check-styles.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",

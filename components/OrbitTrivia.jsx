@@ -44,9 +44,15 @@ export default function OrbitTrivia() {
   const [dayStreakData, setDayStreakData] = useState({ lastDate: null, current: 0, best: 0 });
   const [streakMilestone, setStreakMilestone] = useState(null);
   const [soundOn, setSoundOn] = useState(true);
-  /* How much spectacle the player wants. The device's own reduced-motion
-     setting overrides this and is watched live — see lib/motion.js. */
-  const [motionLevel, setMotionLevel] = useState("full");
+  /* How much spectacle the player wants.
+
+     Starts as null meaning "never chosen", which is NOT the same as
+     "full": while it is null the device's own reduced-motion preference
+     picks the level, and once the player taps the control their choice
+     takes over for good. Defaulting this to "full" made every session
+     look like a deliberate choice and the device preference never got a
+     say. See lib/motion.js. */
+  const [motionLevel, setMotionLevel] = useState(null);
   const motion = useMotionValue(motionLevel);
   const [escapeBest, setEscapeBest] = useState(0);
   /* The road trip keeps its own best score and its own "yes to location"
@@ -114,6 +120,18 @@ export default function OrbitTrivia() {
       window.removeEventListener("focus", wake);
     };
   }, []);
+
+  /* Publish the resolved level to <html> so stylesheets can honour it.
+     The CSS cannot ask the motion context, and several components kill
+     their own animations from inside a @media (prefers-reduced-motion)
+     block — which would otherwise keep firing even after the player has
+     explicitly asked for motion back. Keyed on the resolved level, so
+     "off" covers both "they chose off" and "the device asked and they
+     never overrode it". */
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.documentElement.dataset.motion = motion.level;
+  }, [motion.level]);
 
   useEffect(() => { SFX.setEnabled(soundOn); }, [soundOn]);
   useEffect(() => { if (themeId) SFX.setTheme(themeId); }, [themeId]);
@@ -184,12 +202,12 @@ export default function OrbitTrivia() {
     try { await storage.set("orbit:sound", next ? "on" : "off"); } catch (e) { /* session only */ }
   };
 
-  /* Cycles full -> subtle -> off. Does nothing while the device is
-     asking for reduced motion: the level is already forced to off, so
-     letting the button appear to change it would just be a lie. */
+  /* Cycles full -> subtle -> off, and always works — including when the
+     device has asked for reduced motion. That preference picks the
+     starting point (see lib/motion.js); it does not get to hold the
+     control hostage. */
   const cycleMotion = async () => {
-    if (motion.systemReduced) return;
-    const next = nextMotionLevel(motionLevel);
+    const next = nextMotionLevel(motion.level);
     setMotionLevel(next);
     SFX.ui();
     try { await storage.set(MOTION_KEY, next); } catch (e) { /* session only */ }
@@ -335,7 +353,7 @@ export default function OrbitTrivia() {
             soundOn={soundOn}
             onToggleSound={toggleSound}
             motionLevel={motion.level}
-            motionLocked={motion.systemReduced}
+            deviceAsksReduced={motion.systemReduced}
             onCycleMotion={cycleMotion}
             showInstall={showInstall}
             onDismissInstall={dismissInstall}
@@ -368,7 +386,7 @@ export default function OrbitTrivia() {
               soundOn={soundOn}
               onToggleSound={() => {}}
               motionLevel={motion.level}
-              motionLocked={motion.systemReduced}
+              deviceAsksReduced={motion.systemReduced}
               onCycleMotion={() => {}}
               showInstall={false}
               onDismissInstall={() => {}}

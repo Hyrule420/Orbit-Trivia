@@ -72,11 +72,18 @@ function SizeFixer() {
    the car icon below (inline SVG through a divIcon; see the file header
    for why default Leaflet markers are avoided). A filled teardrop with
    a dark centre dot, so it reads as "the exact spot" rather than a
-   second copy of the open trigger dot back on the road. Colour is the
-   only thing that changes, so this stays a plain function rather than
-   a hook — no state to memoize against. */
+   second copy of the open trigger dot back on the road.
+
+   Cached by colour. A fresh divIcon on every render would make
+   react-leaflet call setIcon on every marker, which throws away and
+   rebuilds their DOM — and this map re-renders on every position fix,
+   so during a drive that is a rebuild of every pin, several times a
+   second, forever. There are only three possible colours. */
+const pinIconCache = new Map();
 function realPinIcon(color) {
-  return L.divIcon({
+  const hit = pinIconCache.get(color);
+  if (hit) return hit;
+  const icon = L.divIcon({
     className: "",
     iconSize: [18, 23],
     iconAnchor: [9, 21],
@@ -87,6 +94,8 @@ function realPinIcon(color) {
         <circle cx="9" cy="8.86" r="3" fill="#03040A" opacity="0.88"/>
       </svg>`,
   });
+  pinIconCache.set(color, icon);
+  return icon;
 }
 
 export default function GeoMap({
@@ -139,8 +148,8 @@ export default function GeoMap({
            swapping to a whole different tile provider. */
         .nc-map-mars .leaflet-tile-pane { filter: sepia(.4) hue-rotate(-18deg) saturate(1.3); }
 
-        /* The zone you're heading for breathes, so there is always
-           something on the map telling you what's coming. Pure CSS on
+        /* The zone up ahead breathes, so there is always something on
+           the map telling you what is coming. Pure CSS on
            the SVG path — no animation loop, which matters on a screen
            that already holds a GPS watch and a wake lock for an hour. */
         @keyframes nc-zone-pulse {
@@ -149,8 +158,11 @@ export default function GeoMap({
         }
         .nc-map .nc-next { animation: nc-zone-pulse 2.2s ease-in-out infinite; }
         @media (prefers-reduced-motion: reduce) {
-          .nc-map .nc-next { animation: none; stroke-opacity: .8; }
+          html:not([data-motion=full]):not([data-motion=subtle]) .nc-map .nc-next {
+            animation: none; stroke-opacity: .8;
+          }
         }
+        html[data-motion=off] .nc-map .nc-next { animation: none; stroke-opacity: .8; }
       `}</style>
 
       <div className={`nc-map ${mars ? "nc-map-mars" : ""}`} style={{ borderRadius: 18, overflow: "hidden", border: `1px solid ${C.edge}` }}>
@@ -211,8 +223,14 @@ export default function GeoMap({
                 {z.real && (
                   <Polyline
                     positions={[[z.lat, z.lng], z.real]}
-                    pathOptions={{ color, weight: 1.5, opacity: 0.5, dashArray: "1 7", lineCap: "round" }}
-                    className={isNext ? "nc-next" : undefined}
+                    /* className belongs inside pathOptions — react-leaflet
+                       passes these straight to Leaflet, and a top-level
+                       className prop on a vector layer is simply dropped,
+                       so the next-zone pulse never reached the line. */
+                    pathOptions={{
+                      color, weight: 1.5, opacity: 0.5, dashArray: "1 7", lineCap: "round",
+                      className: isNext ? "nc-next" : undefined,
+                    }}
                   />
                 )}
                 <CircleMarker
