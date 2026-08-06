@@ -7,7 +7,7 @@ import { useMotion } from "../../lib/motion";
 import { TIER_META } from "../../lib/questions";
 import { heavyDay } from "../../lib/day";
 import { buzz } from "../../lib/util";
-import { CORRIDORS, CORRIDOR_BY_ID, DEFAULT_CORRIDOR_ID } from "../../lib/corridors";
+import { CORRIDORS, CORRIDOR_BY_ID, DEFAULT_CORRIDOR_ID, zoneQuestions } from "../../lib/corridors";
 import { checkPack } from "../../lib/geo";
 import { usePositionSource } from "../../lib/usePositionSource";
 import { useZoneWatcher } from "../../lib/useZoneWatcher";
@@ -20,6 +20,7 @@ import PadLaunchFX from "./PadLaunchFX";
 import BoosterLandingFX from "./BoosterLandingFX";
 import CrawlerRolloutFX from "./CrawlerRolloutFX";
 import GeoQuestionCard from "./GeoQuestionCard";
+import QuestionCarousel from "./QuestionCarousel";
 import { QueueBar, QueueList, ArrivalToast } from "./QueueBar";
 
 /* ============================================================
@@ -33,6 +34,7 @@ import { QueueBar, QueueList, ArrivalToast } from "./QueueBar";
      intro    explain what we're about to do, and ask for location
      map      the live trip — this is where you spend the drive
      queue    the list of questions collected so far
+     carousel picking between a landmark's several questions
      card     answering one question
      summary  end of trip
 
@@ -146,6 +148,12 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
   const [arrival, setArrival] = useState(null);    // zone id showing the big pop-up
   const [toast, setToast] = useState(null);        // zone id showing the small toast
   const [playing, setPlaying] = useState(null);    // zone id being answered
+  /* Which question of a multi-question landmark is on screen, and which
+     ones have already been taken there. Keyed by zone id, because the
+     saved trip stores ids only — never question text — so re-wording a
+     question can never corrupt somebody's progress. */
+  const [playingQ, setPlayingQ] = useState(0);
+  const [answeredQ, setAnsweredQ] = useState({});
   const [padFx, setPadFx] = useState(null);        // zone id running a full-screen sequence
   const [confirmReset, setConfirmReset] = useState(false);
 
@@ -204,6 +212,7 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
       setQueue(trip && Array.isArray(trip.queue) ? trip.queue : []);
       setAnswered(trip && trip.answered && typeof trip.answered === "object" ? trip.answered : {});
       setSkipped(trip && Array.isArray(trip.skipped) ? trip.skipped : []);
+      setAnsweredQ(trip && trip.answeredQ && typeof trip.answeredQ === "object" ? trip.answeredQ : {});
       setPoints(trip ? Number(trip.points) || 0 : 0);
       setSeen(Array.isArray(seenIds) ? seenIds : []);
 
@@ -220,11 +229,11 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
     if (!loaded) return;
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      saveJSON(tripKey(corridorId), { queue, answered, skipped, points, startedAt: Date.now() });
+      saveJSON(tripKey(corridorId), { queue, answered, answeredQ, skipped, points, startedAt: Date.now() });
       saveJSON(seenKey(corridorId), seen);
     }, SAVE_DEBOUNCE_MS);
     return () => clearTimeout(saveTimerRef.current);
-  }, [loaded, corridorId, queue, answered, skipped, points, seen]);
+  }, [loaded, corridorId, queue, answered, answeredQ, skipped, points, seen]);
 
   /* ---------- if location was already granted, don't re-explain ----------
      This must only skip the INTRO screen, not the picker. The picker is
@@ -345,13 +354,18 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
   });
 
   /* ---------- answering ---------- */
+  /* A landmark carrying several questions goes to the reel first so you
+     can pick one; everywhere else drops straight into the question, the
+     way it always has. */
   const playNow = useCallback((id) => {
     setArrival(null);
     setToast(null);
     setPadFx(null);
     setPlaying(id);
-    setView("card");
-  }, []);
+    const many = zoneQuestions(corridor.byId[id]).length > 1;
+    setPlayingQ(0);
+    setView(many ? "carousel" : "card");
+  }, [corridor]);
 
   const saveForLater = useCallback(() => setArrival(null), []);
 
@@ -360,7 +374,14 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
     setQueue((q) => q.filter((x) => x !== id));
     setSeen((s) => (s.includes(id) ? s : [...s, id]));
     setPoints((p) => p + gained);
-  }, []);
+    /* Remember which of a landmark's questions this was, so the reel can
+       grey it out and open on one you have not taken. Answering any one
+       of them is what clears the zone; the rest are optional. */
+    setAnsweredQ((m) => {
+      const had = m[id] || [];
+      return had.includes(playingQ) ? m : { ...m, [id]: [...had, playingQ] };
+    });
+  }, [playingQ]);
 
   /* Safe to read `queue` directly: this only runs from a tap, which is
      always a render after the previous answer was recorded. */
@@ -418,12 +439,13 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
     setAnswered({});
     setSkipped([]);
     setQueue([]);
+    setAnsweredQ({});
     setPadFx(null);
     setPoints(0);
     recentArrivalsRef.current = [];
     resetInside();
     await saveJSON(seenKey(corridorId), []);
-    await saveJSON(tripKey(corridorId), { queue: [], answered: {}, skipped: [], points: 0 });
+    await saveJSON(tripKey(corridorId), { queue: [], answered: {}, answeredQ: {}, skipped: [], points: 0 });
   }, [resetInside, corridorId]);
 
   /* Wipe the road and drive it from the top. This is the one that makes
@@ -447,16 +469,35 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
      VIEWS
      ============================================================ */
 
-  if (view === "card" && playing && corridor.byId[playing]) {
+  if (view === "carousel" && playing && corridor.byId[playing]) {
     return (
-      /* key resets the card's internal "which answer did you pick"
-         state when we move on to the next question in the queue */
-      <GeoQuestionCard
+      <QuestionCarousel
         key={playing}
         zone={corridor.byId[playing]}
+        answeredIdx={answeredQ[playing] || []}
+        onPick={(i) => { setPlayingQ(i); setView("card"); }}
+        onBackToMap={() => { setPlaying(null); setView("map"); }}
+      />
+    );
+  }
+
+  if (view === "card" && playing && corridor.byId[playing]) {
+    const zoneQs = zoneQuestions(corridor.byId[playing]);
+    const many = zoneQs.length > 1;
+    return (
+      /* key resets the card's internal "which answer did you pick" state
+         when we move on — including between two questions on the same
+         landmark, which is why the index is part of it */
+      <GeoQuestionCard
+        key={`${playing}:${playingQ}`}
+        zone={corridor.byId[playing]}
+        question={zoneQs[playingQ] || zoneQs[0]}
         queueRemaining={queue.filter((id) => id !== playing).length}
         onAnswered={recordAnswer}
-        onNext={playNext}
+        /* On a landmark, "next" goes back to the reel so you can take
+           another from the same place if you want one. Everywhere else
+           it moves on down the queue exactly as before. */
+        onNext={many ? () => setView("carousel") : playNext}
         onBackToMap={() => { setPlaying(null); setView("map"); }}
       />
     );

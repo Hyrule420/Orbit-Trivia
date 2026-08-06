@@ -5,6 +5,7 @@ import { MapPin, Check, X, ChevronRight, Map } from "lucide-react";
 import { useC } from "../../lib/theme";
 import { TIER_META } from "../../lib/questions";
 import { shuffle, buzz } from "../../lib/util";
+import { zoneQuestions } from "../../lib/corridors";
 import { Btn, Panel, Kicker } from "./ui";
 
 /* ============================================================
@@ -25,26 +26,33 @@ import { Btn, Panel, Kicker } from "./ui";
    whole mode, so it shows either way, right or wrong.
    ============================================================ */
 
-export default function GeoQuestionCard({ zone, queueRemaining, onAnswered, onNext, onBackToMap }) {
+export default function GeoQuestionCard({ zone, question, queueRemaining, onAnswered, onNext, onBackToMap }) {
   const C = useC();
   const [picked, setPicked] = useState(null);
   const tier = TIER_META[zone.d] || TIER_META.Earthbound;
   const tierColor = C[tier.key];
 
-  /* Shuffle the four options, but seed it from the zone id so the order
-     is stable if the component re-renders mid-question. */
+  /* Which question of this zone we are asking. Landmarks carry several
+     and the carousel picks one; everywhere else there is exactly one and
+     zoneQuestions() hands back the inline q/o/a unchanged. */
+  const Q = question || zoneQuestions(zone)[0] || { q: "", o: [], a: "" };
+
+  /* Shuffle the four options, but seed it from the zone id and the
+     question text so the order is stable if the component re-renders
+     mid-question — and so two questions on the same zone do not get
+     the same shuffle applied to them. */
   const options = useMemo(() => {
-    const seed = zone.id.split("").reduce((n, ch) => n + ch.charCodeAt(0), 0);
-    return shuffle(zone.o, seed);
-  }, [zone.id, zone.o]);
+    const seed = (zone.id + Q.q).split("").reduce((n, ch) => n + ch.charCodeAt(0), 0);
+    return shuffle(Q.o, seed);
+  }, [zone.id, Q.q, Q.o]);
 
   const revealed = picked !== null;
-  const isRight = picked === zone.a;
+  const isRight = picked === Q.a;
 
   const choose = (choice) => {
     if (revealed) return;
     setPicked(choice);
-    const correct = choice === zone.a;
+    const correct = choice === Q.a;
     buzz(correct ? 18 : [30, 60, 30]);
     onAnswered(zone.id, correct, correct ? tier.points : 0);
   };
@@ -53,7 +61,7 @@ export default function GeoQuestionCard({ zone, queueRemaining, onAnswered, onNe
     if (!revealed) {
       return { background: C.hullLight, border: `1px solid ${C.edge}`, color: C.star };
     }
-    if (opt === zone.a) {
+    if (opt === Q.a) {
       return { background: `${C.thrust}1A`, border: `1px solid ${C.thrust}`, color: C.star };
     }
     if (opt === picked) {
@@ -113,7 +121,7 @@ export default function GeoQuestionCard({ zone, queueRemaining, onAnswered, onNe
       {/* The question */}
       <Panel className="p-5 mb-4" style={{ borderColor: `${tierColor}44` }}>
         <p style={{ fontFamily: "'Inter', system-ui, sans-serif", fontSize: 17, lineHeight: 1.5, color: C.star }}>
-          {zone.q}
+          {Q.q}
         </p>
       </Panel>
 
@@ -121,7 +129,7 @@ export default function GeoQuestionCard({ zone, queueRemaining, onAnswered, onNe
       <div className="flex flex-col gap-2">
         {options.map((opt) => {
           const isChosen = opt === picked;
-          const rightOne = revealed && opt === zone.a;
+          const rightOne = revealed && opt === Q.a;
           /* Celebrate on the option you actually tapped: swell on a hit,
              a quick shake on a miss. Everything else stays still. */
           const feedback = !revealed
