@@ -60,10 +60,12 @@ the plain treatment, which is the right default for most entries.
   `"pad"` additionally lets the arrival skip the burst throttle, so a cluster of launch
   complexes doesn't mute the arrivals people came for.
 - **`fx`** — opts the zone into a full-screen sequence on arrival: `"launch"` for an
-  ignition and climb-out, `"landing"` for a booster coming home. Use it only where that
-  literally happens. The Vehicle Assembly Building and the Crawlerway are both
-  `kind: "pad"` and deliberately have **no** `fx` — nothing lifts off from either, so a
-  rocket climbing out of them would read as a bug.
+  ignition and climb-out, `"landing"` for a booster coming home, `"rollout"` for the
+  crawler-transporter creeping a stack across the screen. Use whichever one actually
+  happens at that zone — the Vehicle Assembly Building and the Crawlerway are both
+  `kind: "pad"` but get `"rollout"`, not `"launch"`: nothing lifts off from either of
+  them, but a rollout is *specifically* what a crawlerway is for. A zone where none of
+  the three applies just gets no `fx` at all.
 - **`vehicle`** — which silhouette the sequence flies: `"starship"` or `"falcon"`.
   Defaults to `"falcon"`.
 

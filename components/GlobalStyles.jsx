@@ -267,6 +267,15 @@ export default function GlobalStyles() {
         76%  { opacity: 1; transform: scaleY(.85); }
         100% { opacity: 0; transform: scaleY(.1); }
       }
+      /* The crawler-transporter creeping across the screen. Linear on
+         purpose — no ease-in, no ease-out — because the real thing moves
+         at a near-constant mile an hour and the whole point of it is
+         that it never hurries. translateX rather than left/right so it
+         stays compositor-only like everything else in this block. */
+      @keyframes sc-crawl {
+        0%   { transform: translateX(0); }
+        100% { transform: translateX(calc(100vw + 320px)); }
+      }
       /* The flash the shock front puts across everything for a frame or two. */
       @keyframes sc-flash {
         0%   { opacity: 0; }

@@ -18,6 +18,7 @@ import MapPanel from "./MapPanel";
 import ArrivalPopup from "./ArrivalPopup";
 import PadLaunchFX from "./PadLaunchFX";
 import BoosterLandingFX from "./BoosterLandingFX";
+import CrawlerRolloutFX from "./CrawlerRolloutFX";
 import GeoQuestionCard from "./GeoQuestionCard";
 import { QueueBar, QueueList, ArrivalToast } from "./QueueBar";
 
@@ -951,6 +952,15 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
           key={fxZone.id}
           tierColor={C[fxTier.key]}
           heavy={heavyDay()}
+          onDone={() => setPadFx(null)}
+        />
+      )}
+
+      {fxZone && fxZone.fx === "rollout" && (
+        <CrawlerRolloutFX
+          key={fxZone.id}
+          zone={fxZone}
+          tierColor={C[fxTier.key]}
           onDone={() => setPadFx(null)}
         />
       )}
