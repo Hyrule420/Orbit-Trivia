@@ -62,7 +62,8 @@ the plain treatment, which is the right default for most entries.
 - **`fx`** — opts the zone into a full-screen sequence on arrival: `"launch"` for an
   ignition and climb-out, `"landing"` for a booster coming home, `"rollout"` for the
   crawler-transporter creeping a stack across the screen, `"surf"` for a set rolling
-  through. Use whichever one actually happens at that zone — the Vehicle Assembly
+  through, `"satellites"` for the eras passing overhead. Use whichever one actually
+  happens at that zone — the Vehicle Assembly
   Building and the Crawlerway are both `kind: "pad"` but get `"rollout"`, not
   `"launch"`: nothing lifts off from either of them, but a rollout is *specifically*
   what a crawlerway is for. A zone where none of them applies just gets no `fx` at all.

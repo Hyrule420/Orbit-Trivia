@@ -320,6 +320,59 @@ export default function GlobalStyles() {
         62%  { transform: translate(-56vw, -4px) rotate(-4deg); }
         100% { transform: translate(-104vw, -24px) rotate(-20deg); opacity: 0; }
       }
+      /* ---- Satellite Beach: the eras going overhead ----
+         The town was named after the thing everyone there had come to
+         build, so the arrival plays the whole history of it in launch
+         order: Sputnik, Explorer 1, Telstar, then a Starlink train.
+
+         A real pass rises from one horizon, arcs toward the zenith and
+         sets at the other. That is the whole reason this is not just
+         sc-crawl with a different sprite. --peak is how high a given
+         pass climbs, so three satellites share one keyframe and differ
+         only in how high and how fast they go. */
+      @keyframes sc-satpass {
+        0%   { transform: translate(0, 0) scale(.82);                              opacity: 0; }
+        8%   { opacity: 1; }
+        25%  { transform: translate(27vw, calc(var(--peak) * .55)) scale(.94); }
+        50%  { transform: translate(54vw, var(--peak)) scale(1); }
+        75%  { transform: translate(81vw, calc(var(--peak) * .55)) scale(.94); }
+        92%  { opacity: 1; }
+        100% { transform: translate(112vw, 0) scale(.82);                          opacity: 0; }
+      }
+      /* The Starlink train: flatter, quicker and kept low in the frame.
+         A real string of pearls is best seen low near the horizon at
+         twilight, and staying low also makes the finale read as close
+         and fast rather than distant and serene like the three before. */
+      @keyframes sc-startrain {
+        0%   { transform: translate(0, 0) scale(.9);            opacity: 0; }
+        6%   { opacity: 1; }
+        50%  { transform: translate(58vw, var(--peak)) scale(1); }
+        94%  { opacity: 1; }
+        100% { transform: translate(116vw, 0) scale(.9);        opacity: 0; }
+      }
+      /* A beacon blinking, or a panel catching the sun. Infinite, so it
+         keeps going for as long as the object is on screen. */
+      @keyframes sc-sat-blip {
+        0%, 100% { opacity: .25; transform: scale(.85); }
+        50%      { opacity: 1;   transform: scale(1.15); }
+      }
+      /* The slow wobble the early satellites carry. Nothing up there was
+         actively stabilised yet, and Explorer 1 in particular ended up
+         tumbling end over end once it reached orbit. Kept to a wobble
+         rather than a spin so the antennas stay readable at this size. */
+      @keyframes sc-sat-tumble {
+        0%, 100% { transform: rotate(-7deg); }
+        50%      { transform: rotate(7deg); }
+      }
+      /* A signal reaching straight down as a pass goes overhead: grows,
+         holds a beat, cuts. transform-origin is set on the element so
+         this grows downward from the satellite rather than from itself. */
+      @keyframes sc-downlink {
+        0%   { transform: scaleY(0);  opacity: 0; }
+        35%  { transform: scaleY(1);  opacity: .55; }
+        70%  { transform: scaleY(1);  opacity: .55; }
+        100% { transform: scaleY(.4); opacity: 0; }
+      }
       /* The flash the shock front puts across everything for a frame or two. */
       @keyframes sc-flash {
         0%   { opacity: 0; }
@@ -348,6 +401,13 @@ export default function GlobalStyles() {
       html[data-motion=off] * {
         transition-duration: .01ms !important; animation-duration: .01ms !important;
       }
+      /* Clamping the duration is the right move for a one-shot, which
+         just snaps to its end state. It is the WRONG move for an
+         infinite loop: a .01ms cycle that repeats forever is not a
+         stopped animation, it is a strobe. Anything that loops has to
+         be switched off by name. */
+      html[data-motion=off] .sc-sat-blip,
+      html[data-motion=off] .sc-sat-tumble { animation: none !important; }
     `}</style>
   );
 }
