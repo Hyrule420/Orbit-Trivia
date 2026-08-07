@@ -373,6 +373,51 @@ export default function GlobalStyles() {
         70%  { transform: scaleY(1);  opacity: .55; }
         100% { transform: scaleY(.4); opacity: 0; }
       }
+      /* ---- the planet chooser ----
+         Mars turns and the Moon does not, which is not a stylistic
+         choice: Mars has a day about forty minutes longer than ours,
+         and the Moon is tidally locked, so it keeps the same face
+         toward us forever. What the Moon does instead is librate — it
+         rocks very slightly, which is how we get to see about 59
+         percent of a body that only ever shows us one side. */
+      @keyframes pl-spin {
+        from { transform: translateX(0); }
+        to   { transform: translateX(-50%); }
+      }
+      @keyframes pl-librate {
+        0%, 100% { transform: translate(-1.1%, -0.7%) rotate(-1.2deg); }
+        50%      { transform: translate(1.1%, 0.7%)  rotate(1.2deg); }
+      }
+      /* An orbit, as twelve stops around an ellipse. --rx and --ry set
+         how wide and how steeply inclined it is. The first half of the
+         cycle passes across the bottom, which is the near side. */
+      @keyframes pl-orbit {
+        0%     { transform: translate(var(--rx), 0); }
+        8.33%  { transform: translate(calc(var(--rx) * .866), calc(var(--ry) * .5)); }
+        16.67% { transform: translate(calc(var(--rx) * .5),   calc(var(--ry) * .866)); }
+        25%    { transform: translate(0, var(--ry)); }
+        33.33% { transform: translate(calc(var(--rx) * -.5),  calc(var(--ry) * .866)); }
+        41.67% { transform: translate(calc(var(--rx) * -.866), calc(var(--ry) * .5)); }
+        50%    { transform: translate(calc(var(--rx) * -1), 0); }
+        58.33% { transform: translate(calc(var(--rx) * -.866), calc(var(--ry) * -.5)); }
+        66.67% { transform: translate(calc(var(--rx) * -.5),  calc(var(--ry) * -.866)); }
+        75%    { transform: translate(0, calc(var(--ry) * -1)); }
+        83.33% { transform: translate(calc(var(--rx) * .5),   calc(var(--ry) * -.866)); }
+        91.67% { transform: translate(calc(var(--rx) * .866), calc(var(--ry) * -.5)); }
+        100%   { transform: translate(var(--rx), 0); }
+      }
+      /* The same craft is drawn twice, once over the planet and once
+         under it, and these hand the pass between them — so it crosses
+         in front coming toward you and is properly hidden going behind.
+         Stepped, never faded: a spacecraft does not dissolve. */
+      @keyframes pl-orb-front {
+        0%, 49.9%  { opacity: 1; }
+        50%, 100%  { opacity: 0; }
+      }
+      @keyframes pl-orb-back {
+        0%, 49.9%  { opacity: 0; }
+        50%, 100%  { opacity: 1; }
+      }
       /* The flash the shock front puts across everything for a frame or two. */
       @keyframes sc-flash {
         0%   { opacity: 0; }
@@ -407,7 +452,14 @@ export default function GlobalStyles() {
          stopped animation, it is a strobe. Anything that loops has to
          be switched off by name. */
       html[data-motion=off] .sc-sat-blip,
-      html[data-motion=off] .sc-sat-tumble { animation: none !important; }
+      html[data-motion=off] .sc-sat-tumble,
+      html[data-motion=off] .pl-anim { animation: none !important; }
+      /* The planet chooser is the very first screen, and it can be on
+         display before data-motion has been written, so it needs the
+         media query as well as the attribute. */
+      @media (prefers-reduced-motion: reduce) {
+        html:not([data-motion=full]):not([data-motion=subtle]) .pl-anim { animation: none !important; }
+      }
     `}</style>
   );
 }
