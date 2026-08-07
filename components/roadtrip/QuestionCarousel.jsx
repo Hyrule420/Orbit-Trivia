@@ -35,8 +35,15 @@ import { Btn, Panel, Kicker } from "./ui";
 
 /* How much of the neighbouring cards shows past the edge of the current
    one. Enough to read as a reel with more on it, not so much that the
-   middle card stops being obviously the one in play. */
-const PEEK = 26;
+   middle card stops being obviously the one in play.
+
+   The maths below is fussier than it looks. A flex item sizing itself
+   with a percentage resolves that against the row's CONTENT box, while
+   a percentage inside translateX resolves against its BORDER box — so
+   putting padding on the row makes the two disagree, and the card
+   creeps further off-centre with every step. The row therefore carries
+   no padding at all, and the left gutter comes from the transform. */
+const PEEK = 22;
 const GAP = 12;
 
 export default function QuestionCarousel({ zone, answeredIdx = [], onPick, onBackToMap }) {
@@ -83,9 +90,12 @@ export default function QuestionCarousel({ zone, answeredIdx = [], onPick, onBac
   const onPointerUp = () => { dragRef.current = null; };
 
   const cardW = `calc(100% - ${PEEK * 2}px)`;
+  /* Card i sits at PEEK from the left once the row has been shifted by
+     i whole steps, where a step is one card plus one gap. */
+  const shift = `calc(${PEEK}px - ${idx} * (100% - ${PEEK * 2}px + ${GAP}px))`;
 
   return (
-    <div className="min-h-screen max-w-md mx-auto px-4 pt-5 pb-8">
+    <div className="min-h-screen max-w-md mx-auto px-4 pt-5 pb-6 flex flex-col">
       <button onClick={onBackToMap} className="flex items-center gap-2 mb-5 active:scale-95" style={{ color: C.dim }}>
         <ArrowLeft size={17} />
         <Kicker>BACK TO THE MAP</Kicker>
@@ -105,26 +115,27 @@ export default function QuestionCarousel({ zone, answeredIdx = [], onPick, onBac
         {questions.length} questions about this one. Take as many as you like — one is enough to move on.
       </p>
 
-      {/* ---- the reel ---- */}
+      {/* ---- the reel ----
+           Takes whatever height is left between the heading and the
+           buttons, so the question is the biggest thing on the screen
+           rather than a small card floating in a lot of nothing. */}
       <div
         ref={wrapRef}
-        /* No negative margins here: the translate below is a percentage
-           of this element's own width, so widening it past the column
-           would silently throw the card off-centre. */
-        className="relative overflow-hidden"
+        className="relative overflow-hidden flex-1 min-h-0"
         style={{ touchAction: "pan-y" }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
+        {/* absolute inset-0 rather than h-full: it gives the row a
+            definite box to size against, so the cards fill the reel
+            instead of collapsing to their text height */}
         <div
-          className="flex items-stretch"
+          className="absolute inset-0 flex items-stretch"
           style={{
             gap: GAP,
-            paddingLeft: PEEK,
-            paddingRight: PEEK,
-            transform: `translateX(calc(${-idx} * (100% - ${PEEK * 2}px + ${GAP}px)))`,
+            transform: `translateX(${shift})`,
             transition: motion.off ? "none" : "transform .42s cubic-bezier(.2,.8,.2,1)",
           }}
         >
@@ -132,35 +143,39 @@ export default function QuestionCarousel({ zone, answeredIdx = [], onPick, onBac
             const done = answeredIdx.includes(i);
             const active = i === idx;
             return (
-              <div key={entry.q} style={{ width: cardW, flexShrink: 0 }}>
+              <div key={entry.q} className="h-full" style={{ width: cardW, flexShrink: 0 }}>
                 <Panel
-                  className="p-5 h-full flex flex-col"
+                  className="p-6 h-full flex flex-col"
                   style={{
                     borderColor: done ? `${C.thrust}66` : active ? `${tierColor}77` : C.edge,
                     /* the off-centre cards sit back rather than vanish, so
                        the reel reads as having depth */
-                    transform: active ? "scale(1)" : "scale(.93)",
-                    opacity: active ? 1 : 0.5,
+                    transform: active ? "scale(1)" : "scale(.94)",
+                    opacity: active ? 1 : 0.45,
                     transition: motion.off ? "none" : "transform .42s cubic-bezier(.2,.8,.2,1), opacity .42s ease, border-color .3s ease",
-                    minHeight: 168,
+                    boxShadow: active && !done ? `0 0 40px ${tierColor}22` : "none",
                   }}
                 >
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center justify-between mb-4">
                     <Kicker color={done ? C.thrust : C.dim}>
                       {done ? "ANSWERED" : `QUESTION ${i + 1} OF ${questions.length}`}
                     </Kicker>
                     {done && <Check size={15} style={{ color: C.thrust }} />}
                   </div>
-                  <p
-                    style={{
-                      fontFamily: "'Inter', system-ui, sans-serif",
-                      fontSize: 16,
-                      lineHeight: 1.5,
-                      color: done ? C.dim : C.star,
-                    }}
-                  >
-                    {entry.q}
-                  </p>
+                  {/* centred in the card so a short question does not sit
+                      marooned at the top of a tall panel */}
+                  <div className="flex-1 flex items-center">
+                    <p
+                      style={{
+                        fontFamily: "'Inter', system-ui, sans-serif",
+                        fontSize: 21,
+                        lineHeight: 1.45,
+                        color: done ? C.dim : C.star,
+                      }}
+                    >
+                      {entry.q}
+                    </p>
+                  </div>
                 </Panel>
               </div>
             );
