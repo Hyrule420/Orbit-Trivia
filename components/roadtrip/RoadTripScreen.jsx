@@ -22,6 +22,7 @@ import CrawlerRolloutFX from "./CrawlerRolloutFX";
 import SurfFX from "./SurfFX";
 import SatelliteFX from "./SatelliteFX";
 import SpaceTrafficControlFX from "./SpaceTrafficControlFX";
+import WeekiWacheeFX from "./WeekiWacheeFX";
 import GeoQuestionCard from "./GeoQuestionCard";
 import QuestionCarousel from "./QuestionCarousel";
 import { QueueBar, QueueList, ArrivalToast } from "./QueueBar";
@@ -1033,6 +1034,10 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
           tierColor={C[fxTier.key]}
           onDone={() => setPadFx(null)}
         />
+      )}
+
+      {fxZone && fxZone.fx === "mermaids" && (
+        <WeekiWacheeFX key={fxZone.id} onDone={() => setPadFx(null)} />
       )}
 
       {arrivalZone && (
