@@ -21,6 +21,7 @@ import BoosterLandingFX from "./BoosterLandingFX";
 import CrawlerRolloutFX from "./CrawlerRolloutFX";
 import SurfFX from "./SurfFX";
 import SatelliteFX from "./SatelliteFX";
+import SpaceTrafficControlFX from "./SpaceTrafficControlFX";
 import GeoQuestionCard from "./GeoQuestionCard";
 import QuestionCarousel from "./QuestionCarousel";
 import { QueueBar, QueueList, ArrivalToast } from "./QueueBar";
@@ -1020,6 +1021,14 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
 
       {fxZone && fxZone.fx === "satellites" && (
         <SatelliteFX
+          key={fxZone.id}
+          tierColor={C[fxTier.key]}
+          onDone={() => setPadFx(null)}
+        />
+      )}
+
+      {fxZone && fxZone.fx === "tracking" && (
+        <SpaceTrafficControlFX
           key={fxZone.id}
           tierColor={C[fxTier.key]}
           onDone={() => setPadFx(null)}
