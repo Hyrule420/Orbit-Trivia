@@ -89,37 +89,178 @@ const AMBIENT = [
    the darken window rather than looping through it. */
 const STREAKS = [12, 27, 41, 58, 71, 85].map((x, i) => ({ x, delay: i * 90 }));
 
-/* Four separate shapes — fluke, tail, torso, head — each with clear air
-   between it and the next, plus hair kept high and short so it never
-   reads as part of the tail. The first draft merged all of those into
-   one silhouette and it read as a leaf with an arm, not a mermaid; the
-   fix was less overlap, not more detail. */
-function Mermaid({ tail, tailDark }) {
+/* ---------- the performer ----------
+
+   Two earlier drafts of this read as a fish, and both failed the same
+   way: the body was one long horizontal mass, so the eye had nothing
+   to parse as a person. What actually carries the read, in order of
+   how much work each does:
+
+     1. A diagonal. The tail lies low-left, the torso climbs steeply
+        out of it, the head sits high-right. A mermaid laid out flat
+        along one axis is a dolphin no matter how much detail is on it.
+     2. Long hair, streaming back over the body. This is the single
+        strongest signifier there is, which is why there are three
+        separate strands rather than one shape.
+     3. Arms. Two of them — the far one trailing back at low opacity
+        for depth, the near one reaching forward under the chin.
+     4. A waist. The torso has to be visibly narrower than both the
+        hips below it and the shoulders above it.
+
+   Everything after that — face profile, scale rows, fin rays, the
+   gradients — is detail that only survives because the silhouette
+   underneath it already works.
+
+   uid keeps the gradient ids unique: three of these render at once,
+   and duplicate ids inside one document would have all three pulling
+   whichever fill happened to be defined last. It comes from the pass
+   key rather than useId() so the markup is identical on server and
+   client. */
+function Mermaid({ tail, tailDark, uid }) {
+  const gTail = `ww-g-tail-${uid}`;
+  const gSkin = `ww-g-skin-${uid}`;
+
   return (
-    <svg width="112" height="48" viewBox="0 0 112 48" style={{ display: "block", overflow: "visible" }}>
-      {/* fluke: two lobes meeting at the stalk, the classic fishtail shape */}
-      <path d="M22 24 L3 10 L12 24 L3 38 Z" fill={tailDark} />
-      {/* tail, tapering from the fluke up to the waist */}
+    <svg width="150" height="90" viewBox="0 0 175 105" style={{ display: "block", overflow: "visible" }}>
+      <defs>
+        {/* lit from above, the way everything else in this scene is */}
+        <linearGradient id={gTail} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.55" />
+          <stop offset="22%" stopColor={tail} />
+          <stop offset="72%" stopColor={tail} />
+          <stop offset="100%" stopColor={tailDark} />
+        </linearGradient>
+        <linearGradient id={gSkin} x1="0" y1="0" x2="0.3" y2="1">
+          <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.45" />
+          <stop offset="40%" stopColor={tail} />
+          <stop offset="100%" stopColor={tailDark} />
+        </linearGradient>
+      </defs>
+
+      {/* far arm, trailing back behind the body — drawn first so the
+          torso covers its shoulder end, which is what sells it as the
+          limb on the other side rather than a fin */}
       <path
-        d="M20 24 C 32 15, 48 11, 64 15 C 72 17, 78 21, 82 26 C 70 29, 56 31, 42 30 C 32 29, 24 27, 20 24 Z"
-        fill={tail}
-      />
-      <path d="M30 20 C 38 23, 46 26, 54 27" stroke={tailDark} strokeWidth="1.2" fill="none" opacity="0.55" />
-      <path d="M42 16 C 50 19, 58 23, 66 25" stroke={tailDark} strokeWidth="1.2" fill="none" opacity="0.55" />
-      {/* waist, a narrow neck of colour joining tail to torso so the two
-          read as one body instead of two shapes glued together */}
-      <path d="M78 22 C 82 24, 85 26, 88 28 L 84 33 C 80 30, 77 27, 74 25 Z" fill={tail} />
-      {/* torso */}
-      <ellipse cx="92" cy="24" rx="11" ry="9" fill={tail} transform="rotate(-18 92 24)" />
-      {/* arm, reaching forward past the head */}
-      <path d="M98 18 C 104 13, 108 8, 110 2 L 106 1 C 103 7, 98 12, 92 16 Z" fill={tail} />
-      {/* head, given real clearance from the torso so it reads as a head */}
-      <circle cx="100" cy="10" r="6.5" fill={tail} />
-      {/* hair, short and high — over the shoulder, never down into the tail */}
-      <path
-        d="M95 5 C 86 2, 76 4, 68 9 C 77 7, 85 8, 91 11 C 84 11, 77 13, 71 17 C 81 15, 89 13, 96 11 Z"
+        d="M120 34 C 114 42, 108 52, 102 62 C 108 54, 116 45, 124 39 Z"
         fill={tailDark}
-        opacity="0.7"
+        opacity="0.55"
+      />
+
+      {/* ---- tail ---- */}
+      {/* The fluke gets its own flex, hinged at the stalk, running a
+          little out of step with the body kick in the parent. A tail
+          that swings only as part of one rigid sprite is the thing
+          that makes cheap swimming animation look pasted on. */}
+      <g
+        className="ww-fluke"
+        style={{ transformOrigin: "34px 78px", transformBox: "view-box", animation: "ww-fluke 620ms ease-in-out -160ms infinite" }}
+      >
+        <path
+          d="M34 78 C 27 71, 17 61, 5 50 C 9 62, 15 71, 25 78 C 15 84, 9 90, 6 99 C 18 92, 28 86, 34 78 Z"
+          fill={tailDark}
+        />
+        {/* fin rays, the give-away that a fluke is membrane over spines */}
+        <g stroke={tail} strokeWidth="0.9" opacity="0.45" fill="none">
+          <path d="M31 76 L 13 57" />
+          <path d="M31 77 L 17 67" />
+          <path d="M31 80 L 15 85" />
+          <path d="M31 81 L 13 94" />
+        </g>
+      </g>
+
+      {/* The tail runs low and near-level; all the climb is saved for
+          the torso above it. Spreading the rise evenly across the whole
+          body is what made two earlier drafts read as one tapering tube. */}
+      <path
+        d="M30 73 C 44 70, 58 67, 70 63 C 82 59, 92 55, 101 51 L 104 71 C 94 75, 84 78, 72 80 C 58 83, 42 84, 30 83 Z"
+        fill={`url(#${gTail})`}
+      />
+      {/* scale rows, curving across the taper rather than straight */}
+      <g stroke={tailDark} strokeWidth="1.1" fill="none" opacity="0.4">
+        <path d="M44 70 C 48 76, 48 80, 46 83" />
+        <path d="M58 66 C 63 73, 63 78, 60 82" />
+        <path d="M72 61 C 78 68, 78 74, 74 79" />
+        <path d="M86 56 C 93 63, 93 70, 88 75" />
+      </g>
+      {/* a hard specular line along the top of the tail — this is most
+          of what makes it read as wet */}
+      <path
+        d="M32 72 C 46 69, 60 66, 72 62 C 84 58, 93 54, 101 51"
+        stroke="#FFFFFF"
+        strokeWidth="1.6"
+        opacity="0.4"
+        fill="none"
+        strokeLinecap="round"
+      />
+
+      {/* pelvic fin at the hip, trailing back */}
+      <path
+        d="M99 70 C 92 78, 84 84, 75 89 C 85 86, 95 81, 103 75 Z"
+        fill={tailDark}
+        opacity="0.8"
+      />
+
+      {/* ---- torso ----
+          An hourglass, measured across the body axis rather than
+          vertically: roughly 16 wide at the hip, pinched to 10 at the
+          waist, back out to 18 at the bust. Those three numbers are the
+          whole difference between a person and a tube. */}
+      <path
+        d="M99 53
+           C 103 44, 110 32, 118 23
+           C 122 18, 130 18, 132 24
+           C 133 30, 133 34, 131 38
+           C 130 43, 124 44, 118 46
+           C 113 54, 109 64, 106 73
+           C 103 77, 98 75, 98 68 Z"
+        fill={`url(#${gSkin})`}
+      />
+
+      {/* ---- head, in profile: brow, nose, lip, chin ---- */}
+      <path
+        d="M136 3
+           C 145 0, 153 4, 154 11
+           C 154 14, 156 15, 156 17
+           C 156 19, 153 19, 151 20
+           C 153 22, 153 24, 150 25
+           C 148 28, 143 29, 138 28
+           C 131 27, 128 22, 128 15
+           C 128 8, 131 4, 136 3 Z"
+        fill={`url(#${gSkin})`}
+      />
+      <circle cx="147" cy="13" r="1.6" fill={tailDark} opacity="0.85" />
+
+      {/* near arm, reaching forward under the chin */}
+      <path
+        d="M126 32
+           C 136 32, 148 31, 158 29
+           C 163 28, 168 27, 169 30
+           C 170 33, 165 34, 160 35
+           C 149 37, 136 40, 127 40 Z"
+        fill={`url(#${gSkin})`}
+      />
+
+      {/* ---- hair ----
+          Every strand starts ON the skull and then follows the line of
+          the back down over the torso and tail, rather than arcing off
+          into open water above her. Two earlier passes had them
+          launching from the crown across empty blue, where they read as
+          loose ribbons — or worse, as wings — instead of as hair
+          belonging to anybody. Hair trails along the body, not beside it. */}
+      <path
+        d="M134 6 C 126 8, 116 16, 106 27 C 94 40, 82 54, 72 66 C 84 56, 96 44, 108 33 C 120 22, 130 14, 136 12 Z"
+        fill={tailDark}
+        opacity="0.92"
+      />
+      <path
+        d="M131 13 C 122 16, 111 25, 100 37 C 88 50, 77 63, 68 75 C 79 64, 91 51, 103 40 C 115 29, 126 20, 132 18 Z"
+        fill={tailDark}
+        opacity="0.78"
+      />
+      <path
+        d="M127 21 C 118 25, 108 34, 98 46 C 87 58, 78 70, 71 82 C 81 71, 92 58, 103 47 C 114 36, 123 28, 128 25 Z"
+        fill={tailDark}
+        opacity="0.62"
       />
     </svg>
   );
@@ -157,6 +298,11 @@ export default function WeekiWacheeFX({ onDone }) {
           0%, 100% { transform: rotate(-9deg); }
           50%      { transform: rotate(9deg); }
         }
+        /* the fluke flexing against the body kick rather than with it */
+        @keyframes ww-fluke {
+          0%, 100% { transform: rotate(-15deg); }
+          50%      { transform: rotate(15deg); }
+        }
         @keyframes ww-sparkle {
           0%   { transform: scale(0)   rotate(0deg);  opacity: 0; }
           40%  { transform: scale(1)   rotate(45deg); opacity: 1; }
@@ -177,6 +323,7 @@ export default function WeekiWacheeFX({ onDone }) {
         }
         html[data-motion=off] .ww-ray,
         html[data-motion=off] .ww-bub,
+        html[data-motion=off] .ww-fluke,
         html[data-motion=off] .ww-kick { animation: none !important; }
       `}</style>
 
@@ -243,12 +390,15 @@ export default function WeekiWacheeFX({ onDone }) {
               enough to spell out twice. */}
           <div className="relative" style={{ transform: `scale(${p.scale})` }}>
             <div className="ww-kick relative" style={{ animation: `ww-kick ${520 / p.scale}ms ease-in-out infinite` }}>
-              <Mermaid tail={p.tail} tailDark={p.tailDark} />
+              <Mermaid tail={p.tail} tailDark={p.tailDark} uid={p.key} />
               {/* the sparkle, timed to when this performer is centre stage */}
+              {/* sits at her fingertips, not out by her face — the arm
+                  reaches to the right edge of the box about a third of
+                  the way down it */}
               <span
                 className="nc-anim absolute"
                 style={{
-                  right: 2, top: 2,
+                  right: -2, top: 18,
                   animation: `ww-sparkle 550ms ease-out ${p.peakAt}ms both`,
                 }}
               >
