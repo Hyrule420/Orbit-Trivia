@@ -91,9 +91,10 @@ const STREAKS = [12, 27, 41, 58, 71, 85].map((x, i) => ({ x, delay: i * 90 }));
 
 /* Four separate shapes — fluke, tail, torso, head — each with clear air
    between it and the next, plus hair kept high and short so it never
-   reads as part of the tail. The first draft merged all of those into
-   one silhouette and it read as a leaf with an arm, not a mermaid; the
-   fix was less overlap, not more detail. */
+   reads as part of the tail. A one-piece body+head+tail silhouette was
+   tried and tested live: at the size this actually plays at, it reads
+   as a dolphin with fin-lines, not a mermaid. The fix is less overlap,
+   not more detail. */
 function Mermaid({ tail, tailDark }) {
   return (
     <svg width="112" height="48" viewBox="0 0 112 48" style={{ display: "block", overflow: "visible" }}>
