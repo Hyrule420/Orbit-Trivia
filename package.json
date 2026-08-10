@@ -1,7 +1,7 @@
 {
   "name": "orbit-trivia",
   "version": "1.0.0",
-  "description": "Tesla, SpaceX, and Elon trivia game for Tesla Owners Florida",
+  "description": "Tesla, SpaceX, and Elon trivia game",
   "private": true,
   "scripts": {
     "dev": "next dev",
