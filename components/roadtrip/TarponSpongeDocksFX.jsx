@@ -69,9 +69,10 @@ const SURFACE_AT = 4850;
    still long enough to read before the sequence ends, the way the
    depth fact at the end of WeekiWacheeFX does. FACT_AT sits just past
    the veil fully clearing (SURFACE_AT + 300ms) so it never has to
-   fight the underwater colour for contrast. */
+   fight the underwater colour for contrast. The gap to DONE_AT gives
+   it a solid two-second read once the fade-in finishes. */
 const FACT_AT = 5200;
-const DONE_AT = 6500;
+const DONE_AT = 7500;
 
 /* The diver and the hose share one local clock, running from the
    moment he goes under to the moment he breaks the surface again. */
@@ -262,15 +263,15 @@ export default function TarponSpongeDocksFX({ onDone }) {
           scripts/check-styles.mjs. */}
       <style>{`
         @keyframes sd-veil {
-          0%, 5.4%    { opacity: 0; }
-          10%, 74.6%  { opacity: 1; }
-          79.2%, 100% { opacity: 0; }
+          0%, 4.7%    { opacity: 0; }
+          8.7%, 64.7% { opacity: 1; }
+          68.7%, 100% { opacity: 0; }
         }
         @keyframes sd-hull {
-          0%, 5.4%     { opacity: 1; transform: translateY(0); }
-          9.2%         { opacity: 0; transform: translateY(-2vh); }
-          74.6%        { opacity: 0; }
-          79.2%, 100%  { opacity: 1; transform: translateY(0); }
+          0%, 4.7%     { opacity: 1; transform: translateY(0); }
+          8.7%         { opacity: 0; transform: translateY(-2vh); }
+          64.7%        { opacity: 0; }
+          68.7%, 100%  { opacity: 1; transform: translateY(0); }
         }
         @keyframes sd-depth {
           0%    { transform: translateY(-8vh); opacity: 0; }
