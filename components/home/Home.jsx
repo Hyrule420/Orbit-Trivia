@@ -308,10 +308,10 @@ export default function Home({ onDaily, onCustom, onEscape, onGeoTrip, geoBest =
                         </span>
                       </div>
                       <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, color: C.star }}>
-                        Road Trip Mode
+                        Crew Mode
                       </div>
                       <div className="text-sm mt-1" style={{ color: C.dim }}>
-                        Everyone in the car takes a turn. You set the rules.
+                        Everyone takes a turn. You set the rules.
                       </div>
                     </div>
                     <ChevronRight size={20} style={{ color: C.dim, marginTop: 20 }} />

@@ -259,8 +259,6 @@ export default function OrbitTrivia() {
       setConfig({ players: [who], timer: ESCAPE.timerStart, sameQ: true, count: deck.length, pool: deck, difficulty: "Ladder", cats: [] });
       setRunKey((k) => k + 1);
       setScreen("game");
-    } else {
-      setScreen("custom");
     }
   };
 
@@ -336,7 +334,7 @@ export default function OrbitTrivia() {
         {screen === "home" && (
           <Home
             onDaily={() => { setPendingMode("daily"); setScreen("driving"); }}
-            onCustom={() => { setPendingMode("custom"); setScreen("driving"); }}
+            onCustom={() => setScreen("custom")}
             onEscape={() => { setPendingMode("escape"); setScreen("driving"); }}
             onGeoTrip={() => { setPendingMode("geotrip"); setScreen("driving"); }}
             geoBest={geoBest}
