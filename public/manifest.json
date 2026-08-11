@@ -1,7 +1,7 @@
 {
   "name": "Orbit Trivia",
   "short_name": "Orbit Trivia",
-  "description": "Tesla, SpaceX and Elon deep-cut trivia. Daily challenges, endless Escape Velocity runs, pass-and-play Crew Mode, and a location-aware Road Trip down Florida's US-19.",
+  "description": "Space and science trivia — NASA, deep space, Tesla, SpaceX and Elon deep cuts. Daily challenges, endless Escape Velocity runs, pass-and-play Crew Mode, and a location-aware Road Trip down Florida's US-19.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
