@@ -24,6 +24,7 @@ import SatelliteFX from "./SatelliteFX";
 import SpaceTrafficControlFX from "./SpaceTrafficControlFX";
 import WeekiWacheeFX from "./WeekiWacheeFX";
 import TarponSpongeDocksFX from "./TarponSpongeDocksFX";
+import CrystalRiverMoundsFX from "./CrystalRiverMoundsFX";
 import GeoQuestionCard from "./GeoQuestionCard";
 import QuestionCarousel from "./QuestionCarousel";
 import { QueueBar, QueueList, ArrivalToast } from "./QueueBar";
@@ -1043,6 +1044,10 @@ export default function RoadTripScreen({ onHome, optedIn, onOptIn, onTripEnd, ge
 
       {fxZone && fxZone.fx === "divers" && (
         <TarponSpongeDocksFX key={fxZone.id} onDone={() => setPadFx(null)} />
+      )}
+
+      {fxZone && fxZone.fx === "mounds" && (
+        <CrystalRiverMoundsFX key={fxZone.id} onDone={() => setPadFx(null)} />
       )}
 
       {arrivalZone && (
