@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, TileLayer, Polyline, Circle, CircleMarker, Marker, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -104,6 +104,34 @@ export default function GeoMap({
 }) {
   const C = useC();
 
+  /* Tile health, tracked separately from GPS status -- these roads
+     have real dead zones, and losing the tile CDN says nothing about
+     whether the GPS fix or the zone maths are still working (they
+     always are, see the file header). A single tileerror does not
+     mean much on its own; four seconds with no successful tileload
+     behind it does. tileload always clears it immediately, since one
+     good tile is proof the connection is back. */
+  const [tilesDown, setTilesDown] = useState(false);
+  const tileTimerRef = useRef(null);
+
+  const handleTileError = useCallback(() => {
+    if (tileTimerRef.current) return;
+    tileTimerRef.current = setTimeout(() => {
+      setTilesDown(true);
+      tileTimerRef.current = null;
+    }, 4000);
+  }, []);
+
+  const handleTileLoad = useCallback(() => {
+    if (tileTimerRef.current) {
+      clearTimeout(tileTimerRef.current);
+      tileTimerRef.current = null;
+    }
+    setTilesDown(false);
+  }, []);
+
+  useEffect(() => () => { if (tileTimerRef.current) clearTimeout(tileTimerRef.current); }, []);
+
   /* Where we've actually been, drawn as a fading tail behind the car.
      Capped, because a 90-minute drive would otherwise accumulate
      thousands of points and the map would slow to a crawl. */
@@ -165,7 +193,10 @@ export default function GeoMap({
         html[data-motion=off] .nc-map .nc-next { animation: none; stroke-opacity: .8; }
       `}</style>
 
-      <div className={`nc-map ${mars ? "nc-map-mars" : ""}`} style={{ borderRadius: 18, overflow: "hidden", border: `1px solid ${C.edge}` }}>
+      <div
+        className={`nc-map ${mars ? "nc-map-mars" : ""}`}
+        style={{ position: "relative", borderRadius: 18, overflow: "hidden", border: `1px solid ${C.edge}` }}
+      >
         <MapContainer
           center={center}
           zoom={10}
@@ -174,7 +205,12 @@ export default function GeoMap({
           scrollWheelZoom={false}
           attributionControl
         >
-          <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} maxZoom={19} />
+          <TileLayer
+            url={TILE_URL}
+            attribution={TILE_ATTRIBUTION}
+            maxZoom={19}
+            eventHandlers={{ tileerror: handleTileError, tileload: handleTileLoad }}
+          />
           <SizeFixer />
           <FollowCar lat={pos?.lat} lng={pos?.lng} follow={follow} />
           {onTeleport && <ClickCatcher onTeleport={onTeleport} />}
@@ -249,6 +285,31 @@ export default function GeoMap({
           {/* You */}
           {pos && carIcon && <Marker position={[pos.lat, pos.lng]} icon={carIcon} />}
         </MapContainer>
+
+        {/* GPS and the zone maths keep running under this -- see the
+            file header. This only ever says the decoration is down. */}
+        {tilesDown && (
+          <div
+            style={{
+              position: "absolute", top: 10, left: 10, right: 10, zIndex: 500,
+              pointerEvents: "none",
+              background: `${C.void}E6`, border: `1px solid ${C.abort}66`,
+              borderRadius: 10, padding: "8px 12px",
+            }}
+          >
+            <div
+              style={{
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+                letterSpacing: "0.14em", color: C.abort,
+              }}
+            >
+              NO SIGNAL
+            </div>
+            <div style={{ fontSize: 11, color: C.dim, marginTop: 2 }}>
+              Map tiles need a connection — GPS is still tracking you.
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
