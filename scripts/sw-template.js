@@ -28,6 +28,12 @@ const SHELL_CACHE = `orbit-shell-${CACHE_VERSION}`;
 const FONT_CACHE = "orbit-fonts-v1";
 const PRECACHE_URLS = __PRECACHE_URLS__;
 
+/* How long a page load waits on the network before giving up and
+   opening from cache instead. Long enough to win on any real
+   connection, short enough that a dead zone on US-19 still opens the
+   app more or less instantly. */
+const NAV_TIMEOUT_MS = 3000;
+
 self.addEventListener("install", (event) => {
   /* Not cache.addAll -- that rejects the entire precache if even one
      of several hundred chunk URLs 404s or times out. Fetching each
@@ -98,9 +104,44 @@ self.addEventListener("fetch", (event) => {
      fails, it fails silently the same way it already does today. */
   if (url.origin !== self.location.origin) return;
 
-  /* The app shell: cache first, network as a fallback for anything
-     not precached, and the cached page shell as a last resort for a
-     navigation with no connection and no direct match. */
+  /* The page itself: network first. This is the one request that must
+     not come from cache by default -- the HTML names which hashed JS
+     chunks to load, so serving yesterday's copy pins the whole app to
+     yesterday's build no matter how many new ones have shipped. That
+     is invisible in a browser tab, where a pull-to-refresh papers over
+     it, and permanent in a home-screen app, where there is no refresh
+     gesture at all and every launch is this exact request.
+
+     Fresh HTML names the new chunks, which miss the shell cache and
+     come straight off the network, so a new deploy is live on the
+     first launch after it lands rather than the second. Offline, the
+     fetch fails or times out and the cached shell answers exactly as
+     it did before. */
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      Promise.race([
+        fetch(event.request),
+        new Promise((_, reject) => setTimeout(reject, NAV_TIMEOUT_MS)),
+      ])
+        .then((response) => {
+          /* Refresh the offline copy on the way past, but only from a
+             response worth keeping -- caching a 500 from a half-broken
+             deploy would strand the app there until the next one. */
+          if (response.ok) {
+            const copy = response.clone();
+            event.waitUntil(caches.open(SHELL_CACHE).then((cache) => cache.put("/", copy)));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request).then((hit) => hit || caches.match("/")))
+    );
+    return;
+  }
+
+  /* Everything else -- hashed chunks, icons, fonts already handled
+     above -- stays cache first. Those URLs contain a content hash, so
+     a cached one can never be stale: a changed file is a different
+     URL, and the new HTML asks for it by name. */
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
