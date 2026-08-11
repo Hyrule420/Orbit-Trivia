@@ -6,7 +6,7 @@ import ServiceWorkerRegistration from '../components/ServiceWorkerRegistration';
 export const metadata = {
   title: 'Orbit Trivia',
   description:
-    'Tesla, SpaceX and Elon deep-cut trivia. Daily challenges, endless Escape Velocity runs, and pass-and-play Road Trip mode.',
+    'Space and science trivia — NASA, deep space, Tesla, SpaceX and Elon deep cuts. Daily challenges, endless Escape Velocity runs, and pass-and-play Road Trip mode.',
   manifest: '/manifest.json',
   applicationName: 'Orbit Trivia',
   /* Without this block Safari will not offer Add to Home Screen,
@@ -26,7 +26,7 @@ export const metadata = {
   },
   openGraph: {
     title: 'Orbit Trivia',
-    description: 'Tesla, SpaceX and Elon deep-cut trivia. How far can you get?',
+    description: 'Space and science trivia — NASA, deep space, Tesla, SpaceX and Elon deep cuts. How far can you get?',
     images: ['/icon-512.png'],
   },
 };

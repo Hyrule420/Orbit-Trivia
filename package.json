@@ -1,7 +1,7 @@
 {
   "name": "orbit-trivia",
   "version": "1.0.0",
-  "description": "Tesla, SpaceX, and Elon trivia game",
+  "description": "NASA, deep space, Tesla, SpaceX, and Elon trivia game",
   "private": true,
   "scripts": {
     "dev": "next dev",

@@ -24,8 +24,8 @@ export default function Results({ data, onHome, onAgain, profile = {} }) {
   const share = () => {
     const ride = profile.model && profile.model !== "Not yet" ? ` ${profile.model} owner here.` : "";
     const text = solo
-      ? `I scored ${winner.score} on Orbit Trivia — ${winner.correct}/${totalRounds} on Tesla, SpaceX and Elon deep cuts.${ride} Think you can beat that? 🚀`
-      : `${winner.name} just took the car with ${winner.score} points on Orbit Trivia 🚀 Tesla + SpaceX deep cuts. Who's beating that?`;
+      ? `I scored ${winner.score} on Orbit Trivia — ${winner.correct}/${totalRounds} on NASA, deep space, Tesla and SpaceX deep cuts.${ride} Think you can beat that? 🚀`
+      : `${winner.name} just took the car with ${winner.score} points on Orbit Trivia 🚀 NASA, deep space, Tesla + SpaceX deep cuts. Who's beating that?`;
     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank");
   };
 
