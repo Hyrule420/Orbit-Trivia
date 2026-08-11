@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { X, Pause, Check } from "lucide-react";
+import { X, Pause, Check, Lightbulb } from "lucide-react";
 import { useC } from "@/lib/theme";
 import { TIER_META } from "@/lib/questions";
 import { shuffle, buzz } from "@/lib/util";
@@ -534,6 +534,26 @@ export default function Game({ config, mode, onFinish, onQuit }) {
                     </>
                   )}
                 </div>
+                {question.insight && (
+                  <div
+                    className="p-4 rounded-xl mb-3"
+                    style={{
+                      background: C.hullLight,
+                      border: `1px solid ${C.edge}`,
+                      animation: "verdictIn .5s cubic-bezier(.2,.8,.2,1) .15s both",
+                    }}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <Lightbulb size={14} style={{ color: C.ion }} />
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.ion, letterSpacing: "0.14em" }}>
+                        WHY IT MATTERS
+                      </span>
+                    </div>
+                    <p style={{ fontFamily: "Inter, system-ui, sans-serif", fontSize: 14, lineHeight: 1.6, color: C.dim }}>
+                      {question.insight}
+                    </p>
+                  </div>
+                )}
                 <Btn full onClick={advance} style={{ padding: "15px", fontSize: 15 }}>
                   {isEscape
                     ? dead
