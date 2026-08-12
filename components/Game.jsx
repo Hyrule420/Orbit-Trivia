@@ -544,7 +544,19 @@ export default function Game({ config, mode, onFinish, onQuit }) {
                     }}
                   >
                     <div className="flex items-center gap-2 mb-2">
-                      <Lightbulb size={14} style={{ color: C.ion }} />
+                      <div className="relative flex items-center justify-center" style={{ width: 14, height: 14 }}>
+                        {/* the panel lands first; this fires a beat later so the
+                            bulb visibly switches on rather than just being there */}
+                        <div
+                          className="absolute rounded-full pointer-events-none"
+                          style={{
+                            width: 26, height: 26,
+                            background: `radial-gradient(circle, ${C.ion}CC 0%, ${C.ion}55 40%, transparent 70%)`,
+                            animation: "flash .6s ease-out .45s both",
+                          }}
+                        />
+                        <Lightbulb size={14} style={{ color: C.ion, position: "relative", animation: "chargeup .5s ease-out .45s both" }} />
+                      </div>
                       <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.ion, letterSpacing: "0.14em" }}>
                         WHY IT MATTERS
                       </span>
