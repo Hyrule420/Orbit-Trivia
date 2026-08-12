@@ -5,10 +5,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/check-styles.mjs && next build && node scripts/postbuild-sw.mjs",
+    "build": "node scripts/check-styles.mjs && node scripts/check-questions.mjs && next build && node scripts/postbuild-sw.mjs",
     "start": "next start",
     "lint": "next lint",
-    "check:styles": "node scripts/check-styles.mjs"
+    "check:styles": "node scripts/check-styles.mjs",
+    "check:questions": "node scripts/check-questions.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
