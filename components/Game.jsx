@@ -544,18 +544,21 @@ export default function Game({ config, mode, onFinish, onQuit }) {
                     }}
                   >
                     <div className="flex items-center gap-2 mb-2">
-                      <div className="relative flex items-center justify-center" style={{ width: 14, height: 14 }}>
+                      <div className="relative flex items-center justify-center" style={{ width: 18, height: 18 }}>
                         {/* the panel lands first; this fires a beat later so the
-                            bulb visibly switches on rather than just being there */}
+                            bulb visibly switches on rather than just being there.
+                            edgepulse is a single smooth rise-and-fall (unlike flash's
+                            multi-flicker curve, built for a lightning strike) so this
+                            reads as a glow holding and fading, not a spark. */}
                         <div
                           className="absolute rounded-full pointer-events-none"
                           style={{
-                            width: 26, height: 26,
-                            background: `radial-gradient(circle, ${C.ion}CC 0%, ${C.ion}55 40%, transparent 70%)`,
-                            animation: "flash .6s ease-out .45s both",
+                            width: 52, height: 52,
+                            background: `radial-gradient(circle, ${C.ion}FF 0%, ${C.ion}99 35%, transparent 72%)`,
+                            animation: "edgepulse 1.3s ease-out .45s both",
                           }}
                         />
-                        <Lightbulb size={14} style={{ color: C.ion, position: "relative", animation: "chargeup .5s ease-out .45s both" }} />
+                        <Lightbulb size={18} style={{ color: C.ion, position: "relative", animation: "chargeup .7s ease-out .45s both" }} />
                       </div>
                       <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.ion, letterSpacing: "0.14em" }}>
                         WHY IT MATTERS
