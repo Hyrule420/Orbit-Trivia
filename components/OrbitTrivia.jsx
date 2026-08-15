@@ -82,10 +82,13 @@ export default function OrbitTrivia() {
      demand, so dismissing the nudge doesn't mean losing the option. */
   const canInstall = !isInstalled() && (androidEvt !== null || isIOSSafari());
 
-  /* The nudge itself waits until someone has finished a run. Asking a
-     first-time visitor to install something they haven't played
-     yet is how you get it dismissed forever. */
-  const showInstall = !installDismissed && canInstall && stats.runs >= 1;
+  /* Used to wait until someone had finished a run, on the theory that
+     asking a first-time visitor to install something they haven't played
+     yet gets it dismissed forever. Turned off for the beta: these are
+     invited testers, not cold organic traffic, so the priority is making
+     "yes, put it on your home screen" as unmissable as possible from the
+     very first load rather than waiting to earn it. */
+  const showInstall = !installDismissed && canInstall;
 
   const dismissInstall = async () => {
     setInstallDismissed(true);
