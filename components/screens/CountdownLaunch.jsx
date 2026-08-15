@@ -26,8 +26,13 @@ export default function CountdownLaunch({ onDone }) {
   const [n, setN] = useState(3);
   const flavorOffset = useRef(Math.floor(Math.random() * FLAVOR_LINES.length));
 
+  /* The liftoff hang time is tied to the CSS animation's own duration
+     (see the "liftoff" keyframe usage below) -- it used to be shorter
+     than the animation, cutting the rocket's climb off early. */
+  const LIFTOFF_HANG_MS = 1400;
+
   useEffect(() => {
-    const t = setTimeout(() => (n > 0 ? setN(n - 1) : onDone()), n > 0 ? 850 : 950);
+    const t = setTimeout(() => (n > 0 ? setN(n - 1) : onDone()), n > 0 ? 850 : LIFTOFF_HANG_MS);
     return () => clearTimeout(t);
   }, [n, onDone]);
 
@@ -105,7 +110,7 @@ export default function CountdownLaunch({ onDone }) {
           left: "50%",
           bottom: "6vh",
           marginLeft: -26,
-          animation: lifting ? "liftoff 1.1s cubic-bezier(.5,.02,.85,.4) both" : "none",
+          animation: lifting ? "liftoff 1.4s cubic-bezier(.5,.02,.85,.4) both" : "none",
         }}
       >
         <div style={{ animation: "padshake .1s linear infinite" }}>
@@ -118,11 +123,11 @@ export default function CountdownLaunch({ onDone }) {
               marginLeft: -14,
               width: 28,
               height: lifting ? 110 : 34 + (3 - n) * 16,
-              background: `linear-gradient(180deg, #FFFFFF 0%, ${C.ion} 24%, ${C.abort} 58%, transparent 100%)`,
+              background: `linear-gradient(180deg, #FFFFFF 0%, ${C.ion} 20%, ${C.plasma} 50%, ${C.abort} 80%, transparent 100%)`,
               filter: "blur(6px)",
               borderRadius: "50% 50% 50% 50% / 22% 22% 78% 78%",
               transition: "height .5s ease",
-              animation: "plume .16s ease-in-out infinite alternate",
+              animation: "plume .22s ease-in-out infinite alternate",
             }}
           />
         </div>
