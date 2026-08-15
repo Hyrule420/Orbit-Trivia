@@ -91,6 +91,22 @@ export default function GlobalStyles() {
         from { opacity: .85; transform: scaleY(1); }
         to   { opacity: 1;   transform: scaleY(1.18); }
       }
+      /* Exhaust churn. The countdown plume is a stack of layers rather
+         than one bar, and each layer runs this at a different duration
+         so they drift out of phase with each other -- that beat is what
+         reads as turbulence instead of a single object pulsing. */
+      @keyframes plumeChurn {
+        0%   { opacity: .78; transform: scaleY(.97) scaleX(1.02); }
+        50%  { opacity: 1;   transform: scaleY(1.16) scaleX(.94); }
+        100% { opacity: .88; transform: scaleY(1.04) scaleX(1.05); }
+      }
+      /* Shock diamonds: the standing bright spots in a real supersonic
+         exhaust. Subtle on purpose -- they sell the effect by being
+         noticed second, not first. */
+      @keyframes machPulse {
+        from { opacity: .30; transform: scaleX(.78); }
+        to   { opacity: .92; transform: scaleX(1.18); }
+      }
       @keyframes smokeout {
         0%   { transform: translateY(0) scale(.6);      opacity: 0; }
         18%  { opacity: .85; }
@@ -453,6 +469,7 @@ export default function GlobalStyles() {
          be switched off by name. */
       html[data-motion=off] .sc-sat-blip,
       html[data-motion=off] .sc-sat-tumble,
+      html[data-motion=off] .cl-anim,
       html[data-motion=off] .pl-anim { animation: none !important; }
       /* The planet chooser is the very first screen, and it can be on
          display before data-motion has been written, so it needs the
