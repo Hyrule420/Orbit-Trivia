@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Rocket, Users, Trophy, ChevronRight, Flame, Target, Repeat, User, Volume2, VolumeX, MapPin, Zap, ZapOff, Activity } from "lucide-react";
+import { Rocket, Users, Trophy, ChevronRight, Flame, Target, Repeat, User, Volume2, VolumeX, MapPin, Zap, ZapOff, Activity, Download } from "lucide-react";
 import { useC } from "../../lib/theme";
 import { motionLabel, nextMotionLevel, useMotion } from "../../lib/motion";
 import { buzz } from "../../lib/util";
@@ -16,10 +16,22 @@ import InstallHint from "../ui/InstallHint";
 import CardCracks from "./CardCracks";
 import { CARD_SHARDS, LAUNCH } from "./launch";
 
-export default function Home({ onDaily, onCustom, onEscape, onGeoTrip, geoBest = 0, escapeBest = 0, stats, dailyDone, onSwapTheme, themeName, profile, dayStreak, onOpenProfile, streakMilestone, onDismissMilestone, soundOn, onToggleSound, motionLevel = "full", deviceAsksReduced = false, onCycleMotion, showInstall, onDismissInstall, androidPrompt }) {
+export default function Home({ onDaily, onCustom, onEscape, onGeoTrip, geoBest = 0, escapeBest = 0, stats, dailyDone, onSwapTheme, themeName, profile, dayStreak, onOpenProfile, streakMilestone, onDismissMilestone, soundOn, onToggleSound, motionLevel = "full", deviceAsksReduced = false, onCycleMotion, showInstall, canInstall = false, onDismissInstall, androidPrompt }) {
   const C = useC();
   const motion = useMotion();
   const named = (profile.name || "").trim();
+
+  /* The one-shot nudge (showInstall) is dismiss-and-gone-forever by design
+     -- see OrbitTrivia.jsx. This is the escape hatch: a permanent header
+     icon, independent of that dismissal, so "how do I install this" always
+     has an answer instead of only the first time the app decides to ask. */
+  const [installOpen, setInstallOpen] = useState(false);
+  const installPanelShown = showInstall || installOpen;
+  const closeInstall = () => { setInstallOpen(false); onDismissInstall(); };
+  /* Closes itself out if the player installs (or the platform stops
+     qualifying) while they'd manually reopened it -- otherwise it would
+     keep showing "add to home screen" for an app they just added. */
+  useEffect(() => { if (!canInstall) setInstallOpen(false); }, [canInstall]);
 
   /* idle | ignition | ascent | hang | descent | weld */
   const [phase, setPhase] = useState("idle");
@@ -173,6 +185,22 @@ export default function Home({ onDaily, onCustom, onEscape, onGeoTrip, geoBest =
         <div className="pt-4 pb-4 flex items-center justify-between">
           <Logo size={32} />
           <div className="flex items-center gap-2">
+            {canInstall && (
+              <button
+                onClick={() => setInstallOpen((v) => !v)}
+                aria-label="Add to home screen"
+                className="flex items-center justify-center rounded-xl active:scale-90"
+                style={{
+                  width: 36,
+                  height: 34,
+                  background: installPanelShown ? `${C.ion}18` : C.hullLight,
+                  border: `1px solid ${installPanelShown ? C.ion : `${C.ion}55`}`,
+                  transition: "transform .12s, border-color .2s, background .2s",
+                }}
+              >
+                <Download size={14} style={{ color: C.ion }} />
+              </button>
+            )}
             <button
               onClick={onToggleSound}
               aria-label={soundOn ? "Turn sound off" : "Turn sound on"}
@@ -230,6 +258,8 @@ export default function Home({ onDaily, onCustom, onEscape, onGeoTrip, geoBest =
             </button>
           </div>
         </div>
+
+        {installPanelShown && <InstallHint onDismiss={closeInstall} androidPrompt={androidPrompt} />}
 
         <div className="flex items-center gap-2 pb-6">
           <button
@@ -438,7 +468,6 @@ export default function Home({ onDaily, onCustom, onEscape, onGeoTrip, geoBest =
         </div>
 
         <div className="mt-auto pt-8">
-          {showInstall && <InstallHint onDismiss={onDismissInstall} androidPrompt={androidPrompt} />}
           <Panel className="p-4">
             <div className="flex items-center justify-around">
               <Stat icon={<Trophy size={14} />} label="BEST" value={stats.best} color={C.ion} />

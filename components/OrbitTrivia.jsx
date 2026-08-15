@@ -76,11 +76,16 @@ export default function OrbitTrivia() {
     };
   }, []);
 
-  /* The hint waits until someone has finished a run. Asking a
+  /* Whether the platform can install this at all, independent of whether
+     the one-shot nudge below has been dismissed -- Home uses this to decide
+     whether to show a permanent header icon that reopens the same panel on
+     demand, so dismissing the nudge doesn't mean losing the option. */
+  const canInstall = !isInstalled() && (androidEvt !== null || isIOSSafari());
+
+  /* The nudge itself waits until someone has finished a run. Asking a
      first-time visitor to install something they haven't played
      yet is how you get it dismissed forever. */
-  const showInstall =
-    !installDismissed && !isInstalled() && stats.runs >= 1 && (androidEvt !== null || isIOSSafari());
+  const showInstall = !installDismissed && canInstall && stats.runs >= 1;
 
   const dismissInstall = async () => {
     setInstallDismissed(true);
@@ -354,6 +359,7 @@ export default function OrbitTrivia() {
             deviceAsksReduced={motion.systemReduced}
             onCycleMotion={cycleMotion}
             showInstall={showInstall}
+            canInstall={canInstall}
             onDismissInstall={dismissInstall}
             androidPrompt={runAndroidInstall}
           />
@@ -387,6 +393,7 @@ export default function OrbitTrivia() {
               deviceAsksReduced={motion.systemReduced}
               onCycleMotion={() => {}}
               showInstall={false}
+              canInstall={false}
               onDismissInstall={() => {}}
               androidPrompt={null}
             />
