@@ -286,7 +286,7 @@ export default function OrbitTrivia() {
       players: [who],
       timer: 20,
       sameQ: true,
-      count: 8,
+      count: 10,
       pool: QUESTIONS.filter((q) => q.d === "Earthbound"),
       difficulty: "Earthbound",
       cats: [],

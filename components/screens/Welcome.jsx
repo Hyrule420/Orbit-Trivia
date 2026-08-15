@@ -42,7 +42,7 @@ export default function Welcome({ onStart, onSkip }) {
             Welcome aboard
           </h1>
           <p className="text-sm mt-3" style={{ color: C.dim, lineHeight: 1.6 }}>
-            First Orbit is eight easy questions with the good stuff explained as you go —
+            First Orbit is ten easy questions with the good stuff explained as you go —
             the fastest way to get a feel for the game before you're thrown at the hard stuff.
           </p>
         </div>
