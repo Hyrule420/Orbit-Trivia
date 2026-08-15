@@ -8,7 +8,7 @@ import Starfield from "../art/Starfield";
 import Section from "../ui/Section";
 import Btn from "../ui/Btn";
 
-export default function ProfileScreen({ profile, onSave, onBack }) {
+export default function ProfileScreen({ profile, onSave, onBack, onReplayWelcome }) {
   const C = useC();
   const [name, setName] = useState(profile.name || "");
   const [handle, setHandle] = useState(profile.handle || "");
@@ -95,6 +95,12 @@ export default function ProfileScreen({ profile, onSave, onBack }) {
         >
           Save profile
         </Btn>
+
+        {onReplayWelcome && (
+          <Btn full variant="ghost" onClick={onReplayWelcome} style={{ marginTop: 12 }}>
+            Replay First Orbit
+          </Btn>
+        )}
       </div>
     </div>
   );

@@ -12,6 +12,7 @@ import { ESCAPE, buildEscapeDeck } from "@/lib/escape";
 import { isInstalled, isIOSSafari } from "@/lib/platform";
 import DrivingCheck from "@/components/ui/DrivingCheck";
 import PlanetPicker from "@/components/screens/PlanetPicker";
+import Welcome from "@/components/screens/Welcome";
 import ProfileScreen from "@/components/screens/ProfileScreen";
 import CustomSetup from "@/components/screens/CustomSetup";
 import Results from "@/components/screens/Results";
@@ -61,6 +62,12 @@ export default function OrbitTrivia() {
   const [geoBest, setGeoBest] = useState(0);
   const [geoOptIn, setGeoOptIn] = useState(false);
   const [installDismissed, setInstallDismissed] = useState(false);
+  /* Whether this device has ever gotten past the Welcome screen, by
+     either starting First Orbit or skipping it. Separate from stats.runs
+     -- see showWelcome below -- and separate from replayWelcome, which is
+     a manual, on-demand re-show that doesn't touch this persisted flag. */
+  const [welcomed, setWelcomed] = useState(false);
+  const [replayWelcome, setReplayWelcome] = useState(false);
   const [androidEvt, setAndroidEvt] = useState(null);
 
   /* Android and desktop Chrome fire this when the site qualifies as
@@ -185,6 +192,10 @@ export default function OrbitTrivia() {
         if (ih?.value === "off") setInstallDismissed(true);
       } catch (e) { /* never dismissed */ }
       try {
+        const w = await storage.get("orbit:welcomed");
+        if (w?.value === "on") setWelcomed(true);
+      } catch (e) { /* first time ever, or predates this flag */ }
+      try {
         const gb = await storage.get("orbit:geo:best");
         if (gb?.value) setGeoBest(parseInt(gb.value, 10) || 0);
       } catch (e) { /* no road trip yet */ }
@@ -246,6 +257,42 @@ export default function OrbitTrivia() {
   const saveGeoOptIn = async () => {
     setGeoOptIn(true);
     try { await storage.set("orbit:geo:optin", "on"); } catch (e) { /* session only */ }
+  };
+
+  /* Gates the very first appearance: nobody who already has a run on
+     this device needs onboarding, even if they somehow never got the
+     welcomed flag written (an update landing between their first and
+     second session, for instance). replayWelcome bypasses this check
+     entirely for the on-demand reopen from the profile screen. */
+  const showWelcome = replayWelcome || (!welcomed && stats.runs === 0);
+
+  const closeWelcome = async () => {
+    setReplayWelcome(false);
+    if (!welcomed) {
+      setWelcomed(true);
+      try { await storage.set("orbit:welcomed", "on"); } catch (e) { /* not fatal */ }
+    }
+  };
+
+  /* First Orbit skips the driving check on purpose, same reasoning as
+     Crew Mode: nobody's very first launch of an invite link is happening
+     mid-drive, and interrupting the welcome moment right after it lands
+     would undercut the whole point of it. */
+  const startFirstOrbit = () => {
+    const who = (profile.name || "").trim() || "You";
+    closeWelcome();
+    setMode("firstorbit");
+    setConfig({
+      players: [who],
+      timer: 20,
+      sameQ: true,
+      count: 10,
+      pool: QUESTIONS.filter((q) => q.d === "Earthbound"),
+      difficulty: "Earthbound",
+      cats: [],
+    });
+    setRunKey((k) => k + 1);
+    setScreen("game");
   };
 
   const afterDrivingCheck = () => {
@@ -339,7 +386,11 @@ export default function OrbitTrivia() {
       <MotionCtx.Provider value={motion}>
       <GlobalStyles />
       <div style={{ background: theme.void, minHeight: "100vh", transition: "background .4s ease" }}>
-        {screen === "home" && (
+        {screen === "home" && showWelcome && (
+          <Welcome onStart={startFirstOrbit} onSkip={closeWelcome} />
+        )}
+
+        {screen === "home" && !showWelcome && (
           <Home
             onDaily={() => { setPendingMode("daily"); setScreen("driving"); }}
             onCustom={() => setScreen("custom")}
@@ -369,7 +420,12 @@ export default function OrbitTrivia() {
         )}
 
         {screen === "profile" && (
-          <ProfileScreen profile={profile} onSave={saveProfile} onBack={() => setScreen("home")} />
+          <ProfileScreen
+            profile={profile}
+            onSave={saveProfile}
+            onBack={() => setScreen("home")}
+            onReplayWelcome={() => { setReplayWelcome(true); setScreen("home"); }}
+          />
         )}
 
         {screen === "driving" && (
