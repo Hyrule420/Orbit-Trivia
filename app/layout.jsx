@@ -4,6 +4,14 @@ import { SpeedInsights } from '@vercel/speed-insights/next';
 import ServiceWorkerRegistration from '../components/ServiceWorkerRegistration';
 
 export const metadata = {
+  /* Without this, Next.js resolves the relative image paths below
+     against whatever host the build ran on -- which for a build not
+     running on Vercel's own servers means og:image ships as an
+     absolute http://localhost:3000/... URL. No outside crawler
+     (iMessage, Twitter, Slack, ...) can ever reach that, so every
+     shared link silently loses its preview image. Setting an
+     explicit, real base is what makes the image actually resolve. */
+  metadataBase: new URL('https://orbit-trivia.vercel.app'),
   title: 'Orbit Trivia',
   description:
     'Space and science trivia — NASA, deep space, Tesla, SpaceX and Elon deep cuts. Daily challenges, endless Escape Velocity runs, and pass-and-play Road Trip mode.',
@@ -27,7 +35,19 @@ export const metadata = {
   openGraph: {
     title: 'Orbit Trivia',
     description: 'Space and science trivia — NASA, deep space, Tesla, SpaceX and Elon deep cuts. How far can you get?',
-    images: ['/icon-512.png'],
+    /* 1200x630 -- the standard share-card size. A square icon reused
+       here gets letterboxed or cropped oddly on most platforms; this
+       is a dedicated wide crop of the same artwork instead. */
+    images: [{ url: '/og-image.png', width: 1200, height: 630 }],
+  },
+  twitter: {
+    /* Without an explicit card type, Twitter/X falls back to a small
+       thumbnail alongside the text instead of the full-width image
+       every other platform shows. */
+    card: 'summary_large_image',
+    title: 'Orbit Trivia',
+    description: 'Space and science trivia — NASA, deep space, Tesla, SpaceX and Elon deep cuts. How far can you get?',
+    images: ['/og-image.png'],
   },
 };
 
