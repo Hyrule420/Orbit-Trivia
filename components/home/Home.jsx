@@ -230,10 +230,8 @@ export default function Home({ onDaily, onCustom, onEscape, onGeoTrip, geoBest =
                 `Motion: ${motionLabel(motionLevel)}${deviceAsksReduced ? " (your device asks for reduced motion)" : ""}.`
                 + ` Switch to ${motionLabel(nextMotionLevel(motionLevel))}`
               }
-              className="flex items-center justify-center rounded-xl active:scale-90"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl active:scale-90"
               style={{
-                width: 36,
-                height: 34,
                 background: C.hullLight,
                 border: `1px solid ${motionLevel === "full" ? `${C.ion}55` : motionLevel === "subtle" ? `${C.plasma}55` : C.edge}`,
                 transition: "transform .12s, border-color .2s",
@@ -244,6 +242,9 @@ export default function Home({ onDaily, onCustom, onEscape, onGeoTrip, geoBest =
                 : motionLevel === "subtle"
                   ? <Activity size={14} style={{ color: C.plasma }} />
                   : <ZapOff size={14} style={{ color: C.dim }} />}
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: C.dim, letterSpacing: "0.14em" }}>
+                {motionLabel(motionLevel).toUpperCase()}
+              </span>
             </button>
 
             <button
