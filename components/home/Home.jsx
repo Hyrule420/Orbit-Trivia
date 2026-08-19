@@ -317,7 +317,7 @@ export default function Home({ onDaily, onCustom, onEscape, onGeoTrip, geoBest =
                         Daily Challenge
                       </div>
                       <div className="text-sm mt-1" style={{ color: C.dim }}>
-                        Ten questions. Same ten for everyone today.
+                        Ten questions. Same ten for everyone. It starts easy.
                       </div>
                     </div>
                     <ChevronRight size={20} style={{ color: C.dim, marginTop: 20 }} />
