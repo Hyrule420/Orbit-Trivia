@@ -6,6 +6,7 @@ import { useC } from "@/lib/theme";
 import { TIER_META } from "@/lib/questions";
 import { shuffle, buzz } from "@/lib/util";
 import { todaySeed } from "@/lib/day";
+import { buildDailyDeck } from "@/lib/daily";
 import { ESCAPE, escapeTimer } from "@/lib/escape";
 import { SFX } from "@/lib/sfx";
 import Starfield from "@/components/art/Starfield";
@@ -63,8 +64,12 @@ export default function Game({ config, mode, onFinish, onQuit }) {
     if (isEscape) {
       /* Already laddered by difficulty — shuffling here would undo it. */
       deckRef.current = [config.pool.slice(0, totalRounds)];
+    } else if (mode === "daily") {
+      /* Same ten for everyone today, but 3 Earthbound → 4 Orbit → 3 Martian. */
+      const shared = buildDailyDeck(config.pool, todaySeed());
+      deckRef.current = players.map(() => shared);
     } else if (sameQ || players.length === 1) {
-      const shared = shuffle(config.pool, mode === "daily" ? todaySeed() : undefined).slice(0, totalRounds);
+      const shared = shuffle(config.pool).slice(0, totalRounds);
       deckRef.current = players.map(() => shared);
     } else {
       const big = shuffle(config.pool);
