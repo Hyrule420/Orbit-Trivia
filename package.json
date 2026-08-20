@@ -5,13 +5,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/check-styles.mjs && node scripts/check-questions.mjs && node scripts/check-daily.mjs && node scripts/check-adaptive.mjs && next build && node scripts/postbuild-sw.mjs",
+    "build": "node scripts/check-styles.mjs && node scripts/check-questions.mjs && node scripts/check-daily.mjs && node scripts/check-adaptive.mjs && node scripts/check-share.mjs && next build && node scripts/postbuild-sw.mjs",
     "start": "next start",
     "lint": "next lint",
     "check:styles": "node scripts/check-styles.mjs",
     "check:questions": "node scripts/check-questions.mjs",
     "check:daily": "node scripts/check-daily.mjs",
-    "check:adaptive": "node scripts/check-adaptive.mjs"
+    "check:adaptive": "node scripts/check-adaptive.mjs",
+    "check:share": "node scripts/check-share.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",

@@ -359,7 +359,15 @@ export default function OrbitTrivia() {
       await saveStats({ ...stats, runs: stats.runs + 1 });
       return;
     }
-    setResults({ ...data, prevBest: stats.best, mode, difficulty: data.difficulty || config?.difficulty });
+    let nextStreak = dayStreakData;
+    if (mode === "daily") nextStreak = bumpDayStreak(dayStreakData);
+    setResults({
+      ...data,
+      prevBest: stats.best,
+      mode,
+      difficulty: data.difficulty || config?.difficulty,
+      dayStreak: mode === "daily" ? nextStreak.current : liveDayStreak(dayStreakData),
+    });
     setScreen("results");
     const topScore = Math.max(...data.scores);
     const topStreak = Math.max(...data.bestStreaks);
@@ -371,7 +379,6 @@ export default function OrbitTrivia() {
     if (mode === "daily") {
       setDailyDone(true);
       try { await storage.set("orbit:daily", JSON.stringify({ date: todayKey(), score: topScore })); } catch (e) { /* not fatal */ }
-      const nextStreak = bumpDayStreak(dayStreakData);
       if (nextStreak !== dayStreakData) {
         setDayStreakData(nextStreak);
         try { await storage.set("orbit:daystreak", JSON.stringify(nextStreak)); } catch (e) { /* not fatal */ }
