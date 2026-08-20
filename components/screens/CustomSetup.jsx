@@ -4,12 +4,14 @@ import React, { useState } from "react";
 import { X, Play } from "lucide-react";
 import { useC } from "../../lib/theme";
 import { QUESTIONS, TIER_META, CATEGORIES } from "../../lib/questions";
+import { emptySkill } from "../../lib/skill";
+import { planAdaptiveCurve, formatCurve } from "../../lib/adaptive";
 import Starfield from "../art/Starfield";
 import Section from "../ui/Section";
 import Slider from "../ui/Slider";
 import Btn from "../ui/Btn";
 
-export default function CustomSetup({ onStart, onBack }) {
+export default function CustomSetup({ onStart, onBack, skill }) {
   const C = useC();
   const [players, setPlayers] = useState(["Player 1", "Player 2"]);
   const [difficulty, setDifficulty] = useState("Mixed");
@@ -23,8 +25,14 @@ export default function CustomSetup({ onStart, onBack }) {
   const rmPlayer = (i) => players.length > 1 && setPlayers(players.filter((_, x) => x !== i));
   const setName = (i, v) => setPlayers(players.map((p, x) => (x === i ? v : p)));
 
-  const pool = QUESTIONS.filter((q) => (difficulty === "Mixed" || q.d === difficulty) && (cats.length === 0 || cats.includes(q.c)));
+  const adaptive = difficulty === "Adaptive";
+  const curve = adaptive ? planAdaptiveCurve(skill || emptySkill(), count) : null;
+  const pool = QUESTIONS.filter(
+    (q) => (difficulty === "Mixed" || adaptive || q.d === difficulty) && (cats.length === 0 || cats.includes(q.c))
+  );
   const enough = pool.length >= count;
+
+  const difficulties = ["Mixed", "Earthbound", "Orbit", "Martian"];
 
   return (
     <div className="relative min-h-screen p-6" style={{ background: C.void }}>
@@ -60,8 +68,49 @@ export default function CustomSetup({ onStart, onBack }) {
         </Section>
 
         <Section label="DIFFICULTY">
+          <button
+            onClick={() => setDifficulty("Adaptive")}
+            className="w-full p-4 rounded-xl text-left active:scale-95 mb-2"
+            style={{
+              background: adaptive ? `${C.ion}18` : C.hullLight,
+              border: `1px solid ${adaptive ? C.ion : C.edge}`,
+              boxShadow: adaptive ? `0 0 24px ${C.ion}22` : "none",
+              transition: "all .18s",
+            }}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 600, fontSize: 15, color: adaptive ? C.ion : C.star }}>
+                  Adaptive
+                </div>
+                <div className="text-xs mt-1" style={{ color: C.dim, lineHeight: 1.45 }}>
+                  {curve
+                    ? formatCurve(curve)
+                    : "Mix slides with how you've been playing."}
+                </div>
+                {adaptive && (
+                  <div className="text-xs mt-1.5" style={{ color: C.dim, lineHeight: 1.45 }}>
+                    {(skill?.seen || 0) < 8
+                      ? "New here — starts a notch easier than Daily. Play to calibrate."
+                      : "Miss twice and it holds altitude. Nail three fast and it climbs."}
+                  </div>
+                )}
+              </div>
+              <span
+                style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: 9,
+                  letterSpacing: "0.14em",
+                  color: adaptive ? C.ion : C.dim,
+                  marginTop: 4,
+                }}
+              >
+                LIVE
+              </span>
+            </div>
+          </button>
           <div className="grid grid-cols-2 gap-2">
-            {["Mixed", "Earthbound", "Orbit", "Martian"].map((t) => {
+            {difficulties.map((t) => {
               const on = difficulty === t;
               const col = TIER_META[t] ? C[TIER_META[t].key] : C.star;
               return (
@@ -128,7 +177,11 @@ export default function CustomSetup({ onStart, onBack }) {
                   {sameQ ? "Everyone gets the same questions" : "Everyone gets different questions"}
                 </div>
                 <div className="text-xs mt-1" style={{ color: C.dim }}>
-                  {sameQ ? "Head to head. Same test, no excuses." : "Fresh questions each turn. Nobody overhears an answer."}
+                  {sameQ
+                    ? adaptive
+                      ? "Head to head on the same mix. Live climb sits this one out so the test stays fair."
+                      : "Head to head. Same test, no excuses."
+                    : "Fresh questions each turn. Nobody overhears an answer."}
                 </div>
               </div>
               <div

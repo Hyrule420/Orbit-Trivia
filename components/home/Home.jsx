@@ -342,7 +342,7 @@ export default function Home({ onDaily, onCustom, onEscape, onGeoTrip, geoBest =
                         Crew Mode
                       </div>
                       <div className="text-sm mt-1" style={{ color: C.dim }}>
-                        Everyone takes a turn. You set the rules.
+                        Everyone takes a turn. Adaptive, if you want it.
                       </div>
                     </div>
                     <ChevronRight size={20} style={{ color: C.dim, marginTop: 20 }} />

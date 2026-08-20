@@ -4,11 +4,13 @@ import React, { useState } from "react";
 import { X } from "lucide-react";
 import { useC } from "../../lib/theme";
 import { TESLA_MODELS } from "../../lib/questions";
+import { TIER_ORDER } from "../../lib/spread";
+import { tierPct } from "../../lib/skill";
 import Starfield from "../art/Starfield";
 import Section from "../ui/Section";
 import Btn from "../ui/Btn";
 
-export default function ProfileScreen({ profile, onSave, onBack, onReplayWelcome }) {
+export default function ProfileScreen({ profile, onSave, onBack, onReplayWelcome, skill }) {
   const C = useC();
   const [name, setName] = useState(profile.name || "");
   const [handle, setHandle] = useState(profile.handle || "");
@@ -37,6 +39,30 @@ export default function ProfileScreen({ profile, onSave, onBack, onReplayWelcome
         <p className="text-sm mb-6" style={{ color: C.dim, lineHeight: 1.6 }}>
           Saved on this device only. Nothing is uploaded anywhere yet.
         </p>
+
+        <Section label="YOUR ORBIT">
+          {(skill?.seen || 0) < 8 ? (
+            <p className="text-sm" style={{ color: C.dim, lineHeight: 1.55 }}>
+              Play a Daily or an Adaptive Crew run — after a handful of answers the mix will start sliding with you.
+            </p>
+          ) : (
+            <div className="flex items-center justify-around py-1">
+              {TIER_ORDER.map((tier) => {
+                const pct = tierPct(skill, tier);
+                return (
+                  <div key={tier} className="text-center">
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 18, color: C.star }}>
+                      {pct === null ? "—" : `${pct}%`}
+                    </div>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: C.dim, letterSpacing: "0.12em", marginTop: 4 }}>
+                      {tier.toUpperCase()}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Section>
 
         <Section label="DISPLAY NAME">
           <input

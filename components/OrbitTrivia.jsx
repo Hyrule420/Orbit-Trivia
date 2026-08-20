@@ -9,6 +9,7 @@ import { SFX } from "@/lib/sfx";
 import { storage } from "@/lib/storage";
 import { todayKey, liveDayStreak, bumpDayStreak } from "@/lib/day";
 import { ESCAPE, buildEscapeDeck } from "@/lib/escape";
+import { emptySkill, parseSkill, applyAnswers, SKILL_STORAGE_KEY } from "@/lib/skill";
 import { isInstalled, isIOSSafari } from "@/lib/platform";
 import DrivingCheck from "@/components/ui/DrivingCheck";
 import PlanetPicker from "@/components/screens/PlanetPicker";
@@ -61,6 +62,7 @@ export default function OrbitTrivia() {
      would make the timed-run numbers meaningless if it were mixed in. */
   const [geoBest, setGeoBest] = useState(0);
   const [geoOptIn, setGeoOptIn] = useState(false);
+  const [skill, setSkill] = useState(emptySkill);
   const [installDismissed, setInstallDismissed] = useState(false);
   /* Whether this device has ever gotten past the Welcome screen, by
      either starting First Orbit or skipping it. Separate from stats.runs
@@ -203,6 +205,10 @@ export default function OrbitTrivia() {
         const go = await storage.get("orbit:geo:optin");
         if (go?.value === "on") setGeoOptIn(true);
       } catch (e) { /* never agreed to share location */ }
+      try {
+        const sk = await storage.get(SKILL_STORAGE_KEY);
+        if (sk?.value) setSkill(parseSkill(JSON.parse(sk.value)));
+      } catch (e) { /* first run, or predates Adaptive */ }
       setBooted(true);
     })();
   }, []);
@@ -257,6 +263,16 @@ export default function OrbitTrivia() {
   const saveGeoOptIn = async () => {
     setGeoOptIn(true);
     try { await storage.set("orbit:geo:optin", "on"); } catch (e) { /* session only */ }
+  };
+
+  const saveSkill = async (next) => {
+    setSkill(next);
+    try { await storage.set(SKILL_STORAGE_KEY, JSON.stringify(next)); } catch (e) { /* session only */ }
+  };
+
+  const recordSkill = async (answers) => {
+    if (!answers || !answers.length) return;
+    await saveSkill(applyAnswers(skill, answers));
   };
 
   /* Gates the very first appearance: nobody who already has a run on
@@ -327,6 +343,12 @@ export default function OrbitTrivia() {
   };
 
   const finish = async (data) => {
+    const solo = (data.players || []).length <= 1;
+    const shouldRecord =
+      mode !== "firstorbit" &&
+      (mode === "daily" || mode === "escape" || (mode === "custom" && solo));
+    if (shouldRecord) await recordSkill(data.answers);
+
     if (data.escape) {
       setResults({ ...data, prevBestV: escapeBest });
       setScreen("results");
@@ -337,7 +359,7 @@ export default function OrbitTrivia() {
       await saveStats({ ...stats, runs: stats.runs + 1 });
       return;
     }
-    setResults({ ...data, prevBest: stats.best });
+    setResults({ ...data, prevBest: stats.best, mode, difficulty: data.difficulty || config?.difficulty });
     setScreen("results");
     const topScore = Math.max(...data.scores);
     const topStreak = Math.max(...data.bestStreaks);
@@ -422,6 +444,7 @@ export default function OrbitTrivia() {
         {screen === "profile" && (
           <ProfileScreen
             profile={profile}
+            skill={skill}
             onSave={saveProfile}
             onBack={() => setScreen("home")}
             onReplayWelcome={() => { setReplayWelcome(true); setScreen("home"); }}
@@ -462,8 +485,9 @@ export default function OrbitTrivia() {
 
         {screen === "custom" && (
           <CustomSetup
+            skill={skill}
             onBack={() => setScreen("home")}
-            onStart={(cfg) => { setMode("custom"); setConfig(cfg); setRunKey((k) => k + 1); setScreen("game"); }}
+            onStart={(cfg) => { setMode("custom"); setConfig({ ...cfg, skill }); setRunKey((k) => k + 1); setScreen("game"); }}
           />
         )}
 

@@ -81,6 +81,17 @@ export default function Results({ data, onHome, onAgain, profile = {} }) {
           )}
         </div>
 
+        {(data.mode === "daily" && solo) && (
+          <p className="text-sm mb-6 text-center" style={{ color: C.dim, lineHeight: 1.55 }}>
+            Crew Mode has Adaptive now — it slides the mix from how you played today.
+          </p>
+        )}
+        {data.mode === "custom" && data.difficulty === "Adaptive" && (
+          <p className="text-sm mb-6 text-center" style={{ color: C.dim, lineHeight: 1.55 }}>
+            Adaptive run. Miss twice and it holds. Three fast nails and it climbs.
+          </p>
+        )}
+
         <div className="flex flex-col gap-2 mb-6">
           {ranked.map((p, i) => (
             <Panel key={p.name + i} className="p-4" style={{ borderColor: i === 0 ? `${C.ion}66` : C.edge, background: i === 0 ? `${C.ion}0E` : C.hull }}>

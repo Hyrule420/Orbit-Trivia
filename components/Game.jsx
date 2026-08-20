@@ -7,6 +7,9 @@ import { TIER_META } from "@/lib/questions";
 import { shuffle, buzz } from "@/lib/util";
 import { todaySeed } from "@/lib/day";
 import { buildDailyDeck } from "@/lib/daily";
+import { buildAdaptiveDeck, applyLiveShift, MAX_LIVE_SHIFTS } from "@/lib/adaptive";
+import { emptySkill } from "@/lib/skill";
+import { clonePiles } from "@/lib/spread";
 import { ESCAPE, escapeTimer } from "@/lib/escape";
 import { SFX } from "@/lib/sfx";
 import Starfield from "@/components/art/Starfield";
@@ -58,6 +61,11 @@ export default function Game({ config, mode, onFinish, onQuit }) {
   if (wasWrongRef.current === null) wasWrongRef.current = players.map(() => false);
 
   const tickedRef = useRef(null);
+  const answersRef = useRef([]);
+  const adaptRef = useRef(null);
+
+  const isAdaptive = config.difficulty === "Adaptive";
+  const liveAdapt = isAdaptive && (players.length === 1 || !sameQ);
 
   const deckRef = useRef(null);
   if (deckRef.current === null) {
@@ -68,6 +76,28 @@ export default function Game({ config, mode, onFinish, onQuit }) {
       /* Same ten for everyone today, but 3 Earthbound → 4 Orbit → 3 Martian. */
       const shared = buildDailyDeck(config.pool, todaySeed());
       deckRef.current = players.map(() => shared);
+    } else if (isAdaptive) {
+      const skill = config.skill || emptySkill();
+      const built = players.map((_, i) =>
+        buildAdaptiveDeck(config.pool, skill, (i + 1) * 97, totalRounds)
+      );
+      if (sameQ || players.length === 1) {
+        deckRef.current = players.map(() => built[0].deck);
+        adaptRef.current = {
+          unused: players.map(() => clonePiles(built[0].unused)),
+          shifts: players.map(() => 0),
+          miss: players.map(() => 0),
+          fast: players.map(() => 0),
+        };
+      } else {
+        deckRef.current = built.map((b) => b.deck);
+        adaptRef.current = {
+          unused: built.map((b) => b.unused),
+          shifts: players.map(() => 0),
+          miss: players.map(() => 0),
+          fast: players.map(() => 0),
+        };
+      }
     } else if (sameQ || players.length === 1) {
       const shared = shuffle(config.pool).slice(0, totalRounds);
       deckRef.current = players.map(() => shared);
@@ -135,6 +165,7 @@ export default function Game({ config, mode, onFinish, onQuit }) {
         }
       }
 
+      let showedPromo = false;
       if (isRight && !isEscape) {
         const maxS = totalRounds * 300 * 1.5;
         const np = Math.min(1, (scores[pIndex] + gain) / (maxS * 0.6));
@@ -145,6 +176,40 @@ export default function Game({ config, mode, onFinish, onQuit }) {
             SFX.promo();
             setPromo(label);
             setTimeout(() => setPromo(null), 1700);
+            showedPromo = true;
+          }
+        }
+      }
+
+      answersRef.current.push({ d: question.d, c: question.c, ok: isRight });
+
+      const ad = adaptRef.current;
+      if (liveAdapt && ad) {
+        if (isRight) {
+          ad.miss[pIndex] = 0;
+          ad.fast[pIndex] = speedBonus > 0 ? ad.fast[pIndex] + 1 : 0;
+        } else {
+          ad.fast[pIndex] = 0;
+          ad.miss[pIndex] += 1;
+        }
+        let dir = null;
+        if (ad.shifts[pIndex] < MAX_LIVE_SHIFTS && qIndex < totalRounds - 1) {
+          if (ad.miss[pIndex] >= 2) dir = "down";
+          else if (ad.fast[pIndex] >= 3) dir = "up";
+        }
+        if (dir) {
+          const res = applyLiveShift(deckRef.current[pIndex], qIndex, ad.unused[pIndex], dir);
+          if (res.shifted) {
+            deckRef.current[pIndex] = res.deck;
+            ad.unused[pIndex] = res.unused;
+            ad.shifts[pIndex] += 1;
+            ad.miss[pIndex] = 0;
+            ad.fast[pIndex] = 0;
+            if (!showedPromo) {
+              SFX.promo();
+              setPromo(dir === "up" ? "CLIMBING" : "HOLDING ALTITUDE");
+              setTimeout(() => setPromo(null), 1700);
+            }
           }
         }
       }
@@ -158,7 +223,7 @@ export default function Game({ config, mode, onFinish, onQuit }) {
       });
       setPhase("revealed");
     },
-    [picked, question, timeLeft, liveTimer, pIndex, isEscape, mult, velocity]
+    [picked, question, timeLeft, liveTimer, pIndex, qIndex, isEscape, liveAdapt, mult, velocity, totalRounds]
   );
 
   useEffect(() => {
@@ -191,6 +256,7 @@ export default function Game({ config, mode, onFinish, onQuit }) {
           cleared: correctCounts[0],
           peakMult: mult,
           escaped: velocity >= 11.2,
+          answers: answersRef.current,
         });
         return;
       }
@@ -207,7 +273,7 @@ export default function Game({ config, mode, onFinish, onQuit }) {
     const lastPlayer = pIndex === players.length - 1;
     const lastQuestion = qIndex === totalRounds - 1;
     if (lastPlayer && lastQuestion) {
-      onFinish({ players, scores, correctCounts, bestStreaks, totalRounds });
+      onFinish({ players, scores, correctCounts, bestStreaks, totalRounds, answers: answersRef.current, difficulty: config.difficulty });
       return;
     }
     setPicked(null);
